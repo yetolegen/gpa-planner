@@ -1,39 +1,49 @@
 # gpa planner
 
-Plan the grades you need for the GPA you want. Free. Private. Runs in your browser. No account, no server.
+plan the grades you need for the gpa you want. free. private. no account, no server.
 
-Open `index.html`. That is it. Or host the folder anywhere (GitHub Pages, Netlify).
+## run it
+- double click `start.bat` (needs python). opens http://localhost:8765. everything works, scans too
+- or open `index.html`. works, but scan reading (ocr) needs http, so use start.bat for that
+- or load as browser extension (below). needed for moodle sync
 
 ## what it does
 - type grades as you get them. every empty box shows the score you need for your goal grade
-- pick a goal grade per course. meter shows secured points, points still possible, goal line
-- GPA if you hit goals, best possible, current pace, improved pace
-- CGPA planner: target, terms per year, retakes, what each term must average
-- works with any grading scale: US 4.0, plain A-F, Kazakhstan / AITU, or your own table
-- `Ctrl K` command search: jump to a course or run any action. auto / light / dark theme
-- all local: no server, no tracking, Inter font bundled in `fonts/` (OFL license)
+- goal grade per course. bar shows secured points, points still possible, goal line
+- gpa if you hit goals, best possible, now, if you improve
+- cgpa planner: target, terms per year, retakes, what each term must average
+- any grading scale: us 4.0, plain a-f, kazakhstan / aitu, or your own table
+- `Ctrl K` command search. auto / light / dark
+- all local. nothing leaves your device except the moodle sync call you set up yourself
 
 ## import
-**syllabus** (PDF, Word .docx, or pasted text)
-- finds the grading table (weights that add to 100%) and the letter scale if the file has one
-- you review and fix a draft before the course is made
-- read in your browser. nothing is uploaded
+**syllabus**: pdf, word, text, or a photo/scan (png jpg webp). finds the grading table and the letter scale. you check the draft before the course is made
+- scans and photos: text read on your device with bundled tesseract. pick the language (english, russian, kazakh)
 
-**Moodle grades**
-- Moodle blocks other sites from reading it, and a page should never ask for your password. so no direct fetch
-- instead: drag the "Grab Moodle grades" bookmark to your bookmarks bar. open Grades > User report in Moodle, click it, paste here
-- or just select the grades table on the Moodle page, copy, paste here
-- grades fill into an existing course by item name, or make a new course
+**moodle grades, paste**: drag the "Grab Moodle grades" bookmark to your bar, open Grades > User report, click it, paste. or copy the table and paste
+
+## moodle sync
+grades fill in by themselves every 15 / 30 / 60 min while the app is open.
+1. in moodle: profile menu > Preferences > Security keys. copy the key for "Moodle mobile web service"
+2. in the app: Moodle sync > paste moodle address + key > Connect
+3. tick courses. press Sync now. done
+
+- key stays in this browser, goes only to your moodle address, left out of backups. read only
+- a normal web page cannot read moodle (browser blocks it). run as extension:
+  1. chrome://extensions > developer mode > Load unpacked > pick this folder
+  2. click the extension icon. app opens. first connect asks for permission to your moodle site
+- some schools turn the mobile service off. no key then. use paste import
+- not tested on a real moodle yet. tested on a fake one with the same answer shape
 
 ## your data
-- saved in your browser (localStorage). use Backup to copy or download it
-- old backups from the GPA Planner artifact import fine
+- saved in your browser (localStorage). Backup copies or downloads it. old artifact backups import fine
+- Backup leaves out the moodle key
 
 ## limits
-- syllabus reading is heuristic. always check the draft table
-- scanned PDFs (pictures of text) can not be read, no OCR
-- PDF and Word reading load a library from a CDN, so they need internet once
-- Moodle bookmark is best effort. themes differ. paste works anywhere
+- syllabus reading is a guess. always check the draft table
+- ocr is slower on big scans. sharp scans read best
+- sync runs only while the app tab is open
+- bundled libs in `vendor/` (see `vendor/README.md`)
 
 ## test
-`npm test` (Node 20+, no packages)
+`npm test` (node 20+, no packages)

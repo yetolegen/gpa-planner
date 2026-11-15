@@ -322,7 +322,41 @@
     };
   }
 
-  const api = { PRESETS, normScale, maxPts, rd, band, cutoff, key, score, calcCourse, summarize, cgPlan, parseSyllabus, parseMoodle, fillScores, migrateV1, candidates, parseScale, similarity, round2, mkComp };
+  function wsRows(json) {
+    const g = json && json.usergrades && json.usergrades[0];
+    if (!g) return [];
+    const items = g.gradeitems || [];
+    const root = items.find((i) => i.itemtype === "course");
+    const rootCat = root ? root.iteminstance : null;
+    const row = (i, kind, depth, name) => ({
+      name: name || i.itemname || "Item", depth, kind,
+      weight: i.weightformatted || (i.weightraw !== null && i.weightraw !== undefined ? `${i.weightraw} %` : ""),
+      grade: i.gradeformatted !== undefined && i.gradeformatted !== null ? String(i.gradeformatted) : i.graderaw !== null && i.graderaw !== undefined ? String(i.graderaw) : "",
+      range: i.rangeformatted || `${i.grademin ?? 0}–${i.grademax ?? 100}`,
+      pct: i.percentageformatted || "",
+    });
+    const leaf = (i) => i.itemtype === "mod" || i.itemtype === "manual";
+    const rows = [];
+    for (const i of items) {
+      if (leaf(i) && (i.categoryid === rootCat || rootCat === null || i.categoryid === undefined)) rows.push(row(i, "item", 1));
+      else if (i.itemtype === "category" && i.iteminstance !== rootCat) {
+        rows.push(row(i, "category", 1, (i.itemname || "Category " + i.iteminstance).replace(/\s*total$/i, "")));
+        for (const k of items) if (leaf(k) && k.categoryid === i.iteminstance) rows.push(row(k, "item", 2));
+      }
+    }
+    return rows;
+  }
+
+  function moodleReportUrl(input) {
+    let u;
+    try { u = new URL(String(input || "").trim()); } catch (e) { return null; }
+    const id = u.searchParams.get("id") || u.searchParams.get("courseid");
+    if (!id || !/^\d+$/.test(id)) return null;
+    const base = u.pathname.replace(/\/(grade|course|my|mod|user|report)\/.*$/, "").replace(/\/$/, "");
+    return `${u.origin}${base}/grade/report/user/index.php?id=${id}`;
+  }
+
+  const api = { wsRows, moodleReportUrl, PRESETS, normScale, maxPts, rd, band, cutoff, key, score, calcCourse, summarize, cgPlan, parseSyllabus, parseMoodle, fillScores, migrateV1, candidates, parseScale, similarity, round2, mkComp };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.GPA = api;
 })(typeof self !== "undefined" ? self : this);

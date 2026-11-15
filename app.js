@@ -8,7 +8,7 @@
   const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const hm = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const STORE = "gpa-planner-v2", THEME_KEY = "gpa-theme";
+  const STORE = "gpa-planner-v2", THEME_KEY = "gpa-theme", LANG_KEY = "gpa-ocr-lang";
   const BOOKMARKLET = "javascript:(function(){var t=document.querySelector('table.user-grade,table.generaltable.user-grade,.user-report-container table');if(!t){alert('Open Moodle > Grades > User report first, then click this bookmark again.');return}var o=[];t.querySelectorAll('tbody tr').forEach(function(tr){var h=tr.querySelector('th.column-itemname,td.column-itemname,th.gradeitemheader');if(!h)return;var q=function(s){var e=tr.querySelector(s);return e?e.textContent.replace(/\\s+/g,' ').trim():''};var c=tr.className+' '+h.className;var m=c.match(/level(\\d+)/);var n=(h.querySelector('.rowtitle')||h).textContent.replace(/\\s+/g,' ').trim();o.push({name:n,depth:m?+m[1]:0,kind:/categoryitem/.test(c)?'categoryitem':/courseitem/.test(c)?'total':/category/.test(c)?'category':'item',weight:q('.column-weight'),grade:q('.column-grade'),range:q('.column-range'),pct:q('.column-percentage')})});var j=JSON.stringify({moodle:1,rows:o});(navigator.clipboard?navigator.clipboard.writeText(j):Promise.reject()).then(function(){alert('Copied '+o.length+' grade rows. Paste them into GPA Planner.')},function(){prompt('Copy this text:',j)})})()";
   const svg = (d) => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const ICON = {
@@ -17,6 +17,7 @@
     down: svg('<path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"/>'),
     sliders: svg('<path d="M2 5h7m3 0h2M2 11h2m3 0h7"/><circle cx="10.5" cy="5" r="1.5"/><circle cx="5.5" cy="11" r="1.5"/>'),
     search: svg('<circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/>'),
+    sync: svg('<path d="M13 8a5 5 0 0 0-9-3M3 2v3h3M3 8a5 5 0 0 0 9 3M13 14v-3h-3"/>'),
   };
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
@@ -61,17 +62,19 @@
     for (let s = stdCount(cg); s < n; s++) cg.terms.splice(s, 0, { g: null, r: false });
     for (let i = cg.terms.length - 1; i >= 0 && stdCount(cg) > n; i--) if (!cg.terms[i].r && cg.terms[i].g === null) cg.terms.splice(i, 1);
   }
-  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, savedAt: 0 });
+  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, sync: null, savedAt: 0 });
   function norm(s) {
     const b = fresh();
     const o = { ...b, ...s, cg: { ...b.cg, ...(s.cg || {}) } };
     o.scale = G.normScale(o.scale || b.scale);
     o.courses = (o.courses || []).map((c) => ({
-      id: c.id || uid(), name: c.name || "Course", cr: c.cr ?? 3,
+      id: c.id || uid(), name: c.name || "Course", cr: c.cr ?? 3, mc: c.mc, sig: c.sig,
       comps: (c.comps || []).map((x) => ({ n: x.n, w: +x.w || 0, min: x.min, items: (x.items || []).map((i) => ({ n: i.n, w: +i.w || 0 })) })),
     }));
     o.scores = o.scores || {};
     o.goals = o.goals || {};
+    const y = o.sync;
+    o.sync = y && typeof y === "object" ? { site: y.site || "", token: y.token || "", userid: y.userid, name: y.name || "", minutes: [0, 15, 30, 60].includes(+y.minutes) ? +y.minutes : 30, track: y.track || {}, courses: y.courses || [], last: +y.last || 0, msg: y.msg || "" } : null;
     o.cg.perYear = Math.max(1, +o.cg.perYear || 2);
     o.cg.years = Math.max(1, +o.cg.years || 4);
     o.cg.terms = (o.cg.terms || []).map((t) => ({ g: t.g === null || t.g === undefined || t.g === "" ? null : +t.g, r: !!t.r }));
@@ -90,7 +93,7 @@
   function flush() {
     saveT = 0;
     const ok = lsSet(STORE, JSON.stringify(S));
-    status(ok ? "saved " + hm() + " · local" : "can't save here · use Backup", !ok);
+    status(ok ? "Saved " + hm() : "Can't save here · use Backup", !ok);
   }
   function save() { S.savedAt = Date.now(); clearTimeout(saveT); saveT = setTimeout(flush, 300); }
   addEventListener("pagehide", () => { if (saveT) flush(); });
@@ -108,16 +111,18 @@
   const needOf = (r) => (r.goal === null ? null : Math.max(0, Math.ceil(r.need(r.goal) - 1e-9)));
 
   function renderSide() {
-    $("side").innerHTML = `<div class="brand"><span class="logo"><i></i><i></i><i></i><i></i></span>gpa/planner<small>local</small></div>
+    $("side").innerHTML = `<div class="brand">GPA Planner</div>
       <button class="kbtn" data-go="pal">${ICON.search}<span>Search</span><kbd>Ctrl K</kbd></button>
       <div><div class="sl"><span>Courses</span><span>${S.courses.length}</span></div>
         <div class="nav" id="nav"><span class="hov" id="hov"></span>${S.courses.map((c) => `<button class="ni${c.id === (cur() && cur().id) ? " on" : ""}" data-id="${c.id}"><i class="dotc" id="nd-${c.id}"></i><span class="nm">${esc(c.name)}</span><span class="nb" id="nb-${c.id}"></span></button>`).join("")}</div>
         <button class="tl" data-go="add">${ICON.plus}Add course</button></div>
       <div><div class="sl">Tools</div><div class="tools">
-        <button class="tl" data-go="import">${ICON.up}Import syllabus / Moodle</button>
+        <button class="tl" data-go="import">${ICON.up}Import syllabus or grades</button>
+        <button class="tl" data-go="sync">${ICON.sync}<span class="nm">Moodle sync</span><span class="nb" id="syncSt"></span></button>
         <button class="tl" data-go="scale">${ICON.sliders}Grading scale</button>
         <button class="tl" data-go="backup">${ICON.down}Backup</button></div></div>
-      <div class="sidefoot"><div class="thm seg" id="thm">${["auto", "light", "dark"].map((t) => `<button data-theme="${t}" class="${getTheme() === t ? "on" : ""}">${t}</button>`).join("")}</div><span class="saved" id="saved"></span></div>`;
+      <div class="sidefoot"><div class="thm seg" id="thm">${["auto", "light", "dark"].map((t) => `<button data-theme="${t}" class="${getTheme() === t ? "on" : ""}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div><span class="saved" id="saved"></span></div>`;
+    syncLabel();
     glide($("thm"), "thm");
     const nav = $("nav"), hov = $("hov");
     nav.addEventListener("mouseover", (e) => {
@@ -141,10 +146,10 @@
   }
 
   function initStrip() {
-    $("strip").innerHTML = `<div class="cell"><span class="lbl">GPA at goals</span><span class="v" id="vGoal">–</span></div>
-      <div class="cell"><span class="lbl">Best possible</span><span class="v" id="vMax">–</span></div>
-      <div class="cell"><span class="lbl">Now</span><span class="v" id="vNow">–</span></div>
-      <div class="cell"><label class="lbl" for="boost">Pace <select id="boost">${[3, 5, 10, 15].map((b) => `<option value="${b}">+${b} pts</option>`).join("")}</select></label><span class="v" id="vImp">–</span></div>`;
+    $("strip").innerHTML = `<div class="k"><span class="kl">GPA if you hit your goals</span><span class="kv" id="vGoal">–</span></div>
+      <div class="k"><span class="kl">Best possible</span><span class="kv" id="vMax">–</span></div>
+      <div class="k"><span class="kl">Now</span><span class="kv" id="vNow">–</span></div>
+      <div class="k"><label class="kl" for="boost">If you improve <select id="boost">${[3, 5, 10, 15].map((b) => `<option value="${b}">+${b} pts</option>`).join("")}</select></label><span class="kv" id="vImp">–</span></div>`;
   }
   function renderStrip() {
     const x = G.summarize(S.courses, S.scores, S.scale, S.goals, S.cg.boost);
@@ -157,9 +162,9 @@
   }
   function renderLegend() {
     const rows = S.scale.rows;
-    $("legend").innerHTML = `<span>scale: <b>${esc(S.scale.name)}</b></span>` +
+    $("legend").innerHTML = `<span>Scale: <b>${esc(S.scale.name)}</b></span>` +
       rows.map((r, i) => `<span><b>${esc(r[1])}</b> ${f2(r[2])} ${i === rows.length - 1 ? "&lt;" + (rows[i - 1] ? rows[i - 1][0] : 0) : r[0] + "+"}</span>`).join("") +
-      (S.scale.round ? "<span>totals round to whole first</span>" : "");
+      (S.scale.round ? "<span>Totals round to whole first</span>" : "");
   }
 
   function itemPct(c, r, ci, ii) {
@@ -186,19 +191,18 @@
   }
   function courseHTML(c) {
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
-    const idx = S.courses.indexOf(c) + 1;
     const rows = c.comps.map((comp, ci) => (comp.items.length
-      ? `<section class="grp"><header class="gh"><span class="gn">${esc(comp.n)}</span><span class="chipm">${f1(r.w[ci] * 100)}%</span><span class="gs" id="gs-${ci}"></span></header>${comp.items.map((x, ii) => {
+      ? `<section class="grp"><header class="gh"><span class="gn">${esc(comp.n)}</span><span class="gw">${f1(r.w[ci] * 100)}% of course</span><span class="gs" id="gs-${ci}"></span></header>${comp.items.map((x, ii) => {
         const k = G.key(c.id, ci, ii), v = S.scores[k];
         return `<div class="r2"><i class="dt0" id="d-${k}"></i><span class="nm" title="${esc(x.n)}">${esc(x.n)}</span><span class="wt">${f1(itemPct(c, r, ci, ii))}%</span><input id="i-${k}" data-k="${k}" type="number" min="0" max="100" step="any" inputmode="decimal" value="${v ?? ""}" placeholder="—" aria-label="${esc(x.n)} score"><span class="hint" id="h-${k}"></span></div>`;
       }).join("")}</section>` : "")).join("") || '<p class="muted" style="margin:0">No components yet. Press Edit.</p>';
     return `<div class="ch">
-      <div class="ct2"><div><div class="crumb">course ${idx}/${S.courses.length}</div><h2 id="cvName">${esc(c.name)}</h2></div>
-        <div class="chr"><span class="chipm" id="cvCr"></span><span class="tagsq" id="cvTag" hidden></span><span class="nowp" id="cvNow"></span><button class="btn" data-act="toggleEdit" id="cvEditBtn">${editing.has(c.id) ? "Done" : "Edit"}</button></div></div>
+      <div class="ct2"><div><h2 id="cvName">${esc(c.name)}</h2><p class="meta" id="cvMeta"></p></div>
+        <button class="btn" data-act="toggleEdit" id="cvEditBtn">${editing.has(c.id) ? "Done" : "Edit"}</button></div>
       <div id="cvEdit">${editing.has(c.id) ? editorHTML(c) : ""}</div>
-      <div class="goalrow"><span class="lbl">Goal</span><div class="pills seg" id="cvPills"></div></div>
+      <div class="goalrow"><span class="kl">Goal grade</span><div class="pills seg" id="cvPills"></div></div>
       <p class="goaltxt" id="cvGoal"></p>
-      <div><div class="blocks" id="cvBlocks">${Array.from({ length: 50 }, (_, i) => `<i class="b" style="--i:${i}"></i>`).join("")}<i class="mk2" id="cvMk" hidden></i></div><div class="mleg" id="cvLeg"></div></div>
+      <div class="meter"><div class="bar2"><i class="mf pos" id="mfP"></i><i class="mf sec" id="mfS"></i><i class="mk2" id="cvMk" hidden></i></div><div class="mleg" id="cvLeg"></div></div>
       <div>${rows}</div></div>`;
   }
   function renderCourse() {
@@ -213,12 +217,7 @@
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
     const live = c.comps.some((x) => x.items.length);
     const n = needOf(r), st = mkStatus(r, live, n);
-    $("cvCr").textContent = `${c.cr ?? 3} CR`;
-    const tag = $("cvTag");
-    tag.hidden = !st;
-    tag.textContent = st ? st[0] : "";
-    tag.className = "tagsq " + (st ? st[1] : "");
-    $("cvNow").innerHTML = r.final !== null ? `final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "";
+    $("cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : ""].filter(Boolean).join(" · ");
     const g = $("cvGoal"), pills = $("cvPills");
     if (!live) { g.textContent = "Add grading components to see the score you need."; pills.innerHTML = ""; }
     else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `Course done: <b>${show(r.final)}%</b> · ${esc(b[1])} ${f2(b[2])}`; pills.innerHTML = ""; }
@@ -229,12 +228,13 @@
       pills.innerHTML = r.reach.map(([t, l, p]) => { const s = r.need(t) <= 0; return `<button class="pill${t === r.goal ? " on" : ""}${s ? " done" : ""}" data-goal="${t}" aria-pressed="${t === r.goal}">${esc(l)}<small>${f2(p)} · ${s ? "secured" : "need " + Math.ceil(r.need(t) - 1e-9)}</small></button>`; }).join("");
       glide(pills, "pills-" + c.id);
     }
-    const bl = $("cvBlocks").children, sec = Math.min(100, r.earned), pos = Math.min(100, r.earned + r.rest);
-    for (let i = 0; i < 50; i++) { const m = i * 2 + 1; bl[i].className = "b" + (m <= sec ? " sec" : m <= pos ? " pos" : ""); }
+    const sec = Math.min(100, r.earned), pos = Math.min(100, r.earned + r.rest);
+    $("mfS").style.width = sec + "%";
+    $("mfP").style.width = pos + "%";
     const mk = $("cvMk"), cut = r.goal === null ? null : G.cutoff(r.goal, S.scale);
     mk.hidden = cut === null || !live;
     if (cut !== null) { mk.style.left = Math.min(100, cut) + "%"; mk.dataset.l = f1(cut); }
-    $("cvLeg").innerHTML = `<span><i class="sw sec"></i>secured <b>${f1(r.earned)}</b></span><span><i class="sw pos"></i>still possible <b>${f1(r.rest)}</b></span>` + (cut === null ? "" : `<span>goal line <b>${f1(cut)}</b></span>`);
+    $("cvLeg").innerHTML = `<span><i class="sw sec"></i>Secured <b>${f1(r.earned)}</b></span><span><i class="sw pos"></i>Still possible <b>${f1(r.rest)}</b></span>` + (cut === null ? "" : `<span>Goal line <b>${f1(cut)}</b></span>`);
     c.comps.forEach((comp, ci) => {
       const s = r.st[ci], gs = $("gs-" + ci);
       if (gs) gs.innerHTML = s.graded ? `<span${r.fails[ci] ? ' class="fail"' : ""}>${f1(s.earned)} / ${f1(s.graded)}${r.fails[ci] ? ` · under ${comp.min}` : ""}</span>` : "—";
@@ -256,10 +256,10 @@
     const cg = S.cg, T = top();
     const chips = [0.75, 0.875, 0.925, 0.975, 1].map((f) => Math.round(T * f * 100) / 100);
     $("cg").innerHTML = `<div class="cgp"><div class="tgt">
-      <div class="tgt-main"><label class="lbl" for="cgTarget">Target CGPA</label>
+      <div class="tgt-main"><label class="kl" for="cgTarget">Target CGPA</label>
         <div class="stepper"><button id="tgtDown" aria-label="Lower target by 0.05">−</button><input id="cgTarget" type="number" min="0" max="${T}" step="0.05" inputmode="decimal" value="${(+cg.target).toFixed(2)}"><button id="tgtUp" aria-label="Raise target by 0.05">+</button></div>
         <div class="chips seg" id="segT" role="group" aria-label="Quick targets">${chips.map((v) => `<button class="chip${Math.abs(v - cg.target) < 1e-9 ? " on" : ""}" data-tgt="${v}">${v.toFixed(2)}</button>`).join("")}</div></div>
-      <div class="tgt-main"><span class="lbl">Hit it by end of</span>
+      <div class="tgt-main"><span class="kl">Hit it by end of</span>
         <div class="chips seg" id="segY" role="group" aria-label="Deadline">${[1, 2, 3, 4, 5, 6].map((y) => `<button class="chip${cg.years === y ? " on" : ""}" data-years="${y}">Y${y}</button>`).join("")}</div></div>
       <div class="mini"><label>terms/yr <input id="perYear" type="number" min="1" max="6" value="${cg.perYear}"></label></div></div>
       <p class="tgt-line" id="cgHead"></p>
@@ -290,7 +290,7 @@
       bar.style.width = val === null ? "0%" : Math.min(100, (val / tp) * 100) + "%";
       bar.className = st[2];
       pv.textContent = val === null ? "" : val > tp + 1e-9 ? "over " + f2(tp) : f2(val);
-      ps.innerHTML = st[0] ? `<span class="tagsq ${st[1]}">${st[0]}</span>` : "";
+      ps.innerHTML = st[0] ? `<span class="tg ${st[1]}">${st[0]}</span>` : "";
     });
     $("cgNote").textContent = p.ci >= 0 && cur !== null && !p.pass ? "Target not reachable with current goals." : "";
   }
@@ -343,6 +343,7 @@
     const go = e.target.closest("[data-go]")?.dataset.go;
     if (!go) return;
     if (go === "pal") openPal(); else if (go === "add") addByHand(); else if (go === "import") openImport();
+    else if (go === "sync") openSync();
     else if (go === "scale") openScale(); else if (go === "backup") openBackup(); else if (go === "example") loadExample();
   });
   $("strip").addEventListener("change", (e) => { if (e.target.id === "boost") { S.cg.boost = +e.target.value; renderStrip(); save(); } });
@@ -448,20 +449,22 @@
     const m = mo;
     const opts = S.courses.map((c) => `<option value="${c.id}"${c.id === (cur() && cur().id) ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     return `<p class="${m.count ? "ok" : "fail"}" style="margin:0">${m.count ? `Read ${m.count} rows, ${Object.keys(m.scores).length} with a grade.` : "No grade rows found. Check what you pasted."}</p>
-      <table class="dt"><thead><tr><th>Component</th><th>Weight %</th><th>Items</th></tr></thead><tbody>${m.comps.map((c) => `<tr><td>${esc(c.n)}</td><td class="mono">${c.w}</td><td class="mono">${c.items.length}</td></tr>`).join("")}</tbody></table>
+      <table class="dt"><thead><tr><th>Component</th><th>Weight %</th><th>Items</th></tr></thead><tbody>${m.comps.map((c) => `<tr><td>${esc(c.n)}</td><td class="num">${c.w}</td><td class="num">${c.items.length}</td></tr>`).join("")}</tbody></table>
       <label class="chk"><input type="radio" name="moMode" value="new"${S.courses.length ? "" : " checked"}><span>New course named <input id="moName" value="${esc(m.name)}"></span></label>
       ${S.courses.length ? `<label class="chk"><input type="radio" name="moMode" value="fill" checked><span>Fill grades into course (match by item name): <select class="ctl" id="moCourse">${opts}</select></span></label>` : ""}
       <div class="actions"><button class="btn primary" data-act="moApply"${m.count ? "" : " disabled"}>Apply</button><span class="foot" id="moRes"></span></div>`;
   }
   function importHTML() {
     const t = (id, label) => `<button class="tab${tab === id ? " on" : ""}" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}</button>`;
-    const head = `<div class="tabs seg" role="tablist">${t("syllabus", "syllabus")}${t("moodle", "moodle grades")}</div>`;
-    if (tab === "syllabus") return head + `<label class="drop" id="drop"><input type="file" id="file" accept=".pdf,.docx,.txt,.md,.text"><b>Drop syllabus here, or click</b><span class="muted">PDF, Word (.docx), or text. Read in your browser. Nothing uploaded.</span></label>
-      <label class="lbl" for="syltxt">or paste the grading section</label><textarea id="syltxt" placeholder="Assignments 20%&#10;Midterm 30%&#10;Final exam 50%"></textarea>
-      <div class="actions"><button class="btn primary" data-act="sylDo">Find grading table</button><span class="foot" id="sylMsg"></span></div><div id="sylOut" style="display:grid;gap:12px">${sy ? sylHTML() : ""}</div>`;
-    return head + `<ol class="steps"><li>In Moodle: <b>Grades</b> for your course, then <b>User report</b>.</li><li>Click the <b>Grab Moodle grades</b> bookmark (drag the button to your bookmarks bar once). Or select the grades table and copy it.</li><li>Paste below.</li></ol>
-      <div class="actions"><a class="btn" id="bm" href="#" draggable="true">Grab Moodle grades</a><button class="link" data-act="bmCopy">copy bookmark code instead</button></div>
-      <p class="foot" style="margin:0">Runs inside your own logged-in Moodle page. Your password goes nowhere. Themes differ: if the bookmark finds nothing, copy and paste the table.</p>
+    const head = `<div class="tabs seg" role="tablist">${t("syllabus", "Syllabus")}${t("moodle", "Moodle grades")}</div>`;
+    const lang = lsGet(LANG_KEY) || "eng";
+    if (tab === "syllabus") return head + `<label class="drop" id="drop"><input type="file" id="file" accept=".pdf,.docx,.txt,.md,.text,.png,.jpg,.jpeg,.webp,.bmp,.gif"><b>Drop a syllabus here, or click</b><span class="muted">PDF, Word, text, or a photo or scan. Read on this device. Nothing is uploaded.</span></label>
+      <label class="fld">Language of scans and photos<select class="ctl" id="ocrLang">${[["eng", "English"], ["rus+eng", "Russian + English"], ["kaz+rus+eng", "Kazakh + Russian + English"]].map(([v, l]) => `<option value="${v}"${v === lang ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="kl" for="syltxt">Or paste the grading section</label><textarea id="syltxt" placeholder="Assignments 20%&#10;Midterm 30%&#10;Final exam 50%"></textarea>
+      <div class="actions"><button class="btn primary" data-act="sylDo">Find grading table</button><span class="foot" id="sylMsg" aria-live="polite"></span></div><div id="sylOut" style="display:grid;gap:12px">${sy ? sylHTML() : ""}</div>`;
+    return head + `<ol class="steps"><li>In Moodle open <b>Grades</b> for your course, then <b>User report</b>.</li><li>Click the <b>Grab Moodle grades</b> bookmark (drag the button to your bookmarks bar once), or select the grades table and copy it.</li><li>Paste below.</li></ol>
+      <div class="actions"><a class="btn" id="bm" href="#" draggable="true">Grab Moodle grades</a><button class="link" data-act="bmCopy">Copy bookmark code instead</button></div>
+      <p class="foot" style="margin:0">Runs inside your own logged-in Moodle page. Your password goes nowhere. Themes differ: if the bookmark finds nothing, copy and paste the table. Want it automatic? Use Moodle sync.</p>
       <textarea id="motxt" placeholder="Paste Moodle grades here"></textarea>
       <div class="actions"><button class="btn primary" data-act="moDo">Read grades</button></div><div id="moOut" style="display:grid;gap:12px">${mo ? moHTML() : ""}</div>`;
   }
@@ -471,6 +474,7 @@
     if ($("bm")) $("bm").setAttribute("href", BOOKMARKLET);
     glide($("dlgBody").querySelector(".tabs"), "tabs");
   }
+  const abs = (p) => new URL(p, location.href).href;
   const loadScript = (src) => new Promise((ok, no) => {
     const s = document.createElement("script");
     s.src = src;
@@ -494,52 +498,182 @@
       return s.trim();
     }).filter(Boolean).join("\n");
   }
-  async function readFile(file) {
+  let ocrW = null, ocrLang = "", ocrNote = () => {};
+  async function ocr(src, lang) {
+    if (!window.Tesseract) await loadScript(abs("vendor/tesseract/tesseract.min.js"));
+    if (!ocrW || ocrLang !== lang) {
+      if (ocrW) await ocrW.terminate();
+      ocrW = await window.Tesseract.createWorker(lang, 1, {
+        workerPath: abs("vendor/tesseract/worker.min.js"), corePath: abs("vendor/tesseract"), langPath: abs("vendor/tessdata"),
+        logger: (m) => ocrNote(m.status === "recognizing text" ? `OCR ${Math.round(m.progress * 100)}%` : m.status),
+      });
+      ocrLang = lang;
+    }
+    return (await ocrW.recognize(src)).data.text;
+  }
+  async function readFile(file, lang, note) {
     const n = file.name.toLowerCase();
+    ocrNote = note;
+    if (/\.(png|jpe?g|webp|bmp|gif)$/.test(n)) return ocr(file, lang);
     if (n.endsWith(".pdf")) {
-      const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
-      if (!window.pdfjsLib) await loadScript(base + "pdf.min.js");
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js";
+      if (!window.pdfjsLib) await loadScript(abs("vendor/pdfjs/pdf.min.js"));
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = abs("vendor/pdfjs/pdf.worker.min.js");
       const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
       const out = [];
-      for (let p = 1; p <= doc.numPages; p++) out.push(pdfText((await (await doc.getPage(p)).getTextContent()).items));
+      for (let p = 1; p <= doc.numPages; p++) {
+        const page = await doc.getPage(p);
+        let txt = pdfText((await page.getTextContent()).items);
+        if (txt.replace(/\s/g, "").length < 25) {
+          const pre = `page ${p}/${doc.numPages} · `;
+          ocrNote = (s) => note(pre + s);
+          note(pre + "scanned, reading pictures of text");
+          const vp = page.getViewport({ scale: 2 }), cv = document.createElement("canvas");
+          cv.width = vp.width;
+          cv.height = vp.height;
+          await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+          txt = await ocr(cv, lang);
+        }
+        out.push(txt);
+      }
       return out.join("\n");
     }
     if (n.endsWith(".docx")) {
-      if (!window.mammoth) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
+      if (!window.mammoth) await loadScript(abs("vendor/mammoth/mammoth.browser.min.js"));
       return (await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
     }
     return file.text();
   }
   function detect(text, name) { sy = G.parseSyllabus(text, name); $("sylOut").innerHTML = sylHTML(); }
   async function takeFile(file) {
-    const msg = $("sylMsg"), t0 = performance.now();
+    const msg = $("sylMsg"), t0 = performance.now(), lang = $("ocrLang")?.value || "eng";
     msg.className = "foot";
-    msg.innerHTML = `<span class="pix">${"<i></i>".repeat(9)}</span>reading ${esc(file.name)} <b class="mono" id="el">0.0s</b>`;
+    msg.innerHTML = `<i class="spin"></i>Reading ${esc(file.name)} <b class="num" id="el">0.0s</b> <span id="sylNote"></span>`;
     clearInterval(tickT);
     tickT = setInterval(() => { const el = $("el"); if (el) el.textContent = ((performance.now() - t0) / 1000).toFixed(1) + "s"; }, 100);
     try {
-      const text = await readFile(file);
+      const text = await readFile(file, lang, (s) => { const e = $("sylNote"); if (e) e.textContent = s; });
       $("syltxt").value = text;
-      msg.textContent = "";
+      msg.textContent = text.trim() ? "" : "Nothing readable found. Try a sharper scan or paste the text.";
       detect(text, file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "));
-    } catch (err) { msg.className = "foot fail"; msg.textContent = "Could not read it (" + (err.message || err) + "). Paste the text instead."; }
+    } catch (err) {
+      const file0 = location.protocol === "file:";
+      msg.className = "foot fail";
+      msg.textContent = "Could not read it (" + (err.message || err) + ")." + (file0 ? " Scans need the app served over http: run start.bat." : "") + " Paste the text instead.";
+    }
     clearInterval(tickT);
   }
 
   function scaleHTML(d) {
-    return `<label class="lbl" for="presetSel">preset</label><select class="ctl" id="presetSel"><option value="">Choose…</option>${Object.entries(G.PRESETS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join("")}</select>
+    return `<label class="kl" for="presetSel">preset</label><select class="ctl" id="presetSel"><option value="">Choose…</option>${Object.entries(G.PRESETS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join("")}</select>
       <label class="chk"><input type="checkbox" id="sclRound"${d.round ? " checked" : ""}><span>Round course total to whole number before grading (94.5 counts as 95)</span></label>
-      <div class="scl"><div class="r lbl"><span>from %</span><span>letter</span><span>points</span><span></span></div>${d.rows.map((r, i) => `<div class="r"><input data-s="0" data-i="${i}" type="number" step="any" value="${r[0]}" aria-label="Minimum percent"><input class="l" data-s="1" data-i="${i}" value="${esc(r[1])}" aria-label="Letter"><input data-s="2" data-i="${i}" type="number" step="any" value="${r[2]}" aria-label="Points"><button class="x" data-act="sRm" data-i="${i}" aria-label="Remove row">×</button></div>`).join("")}</div>
+      <div class="scl"><div class="r h"><span>from %</span><span>letter</span><span>points</span><span></span></div>${d.rows.map((r, i) => `<div class="r"><input data-s="0" data-i="${i}" type="number" step="any" value="${r[0]}" aria-label="Minimum percent"><input class="l" data-s="1" data-i="${i}" value="${esc(r[1])}" aria-label="Letter"><input data-s="2" data-i="${i}" type="number" step="any" value="${r[2]}" aria-label="Points"><button class="x" data-act="sRm" data-i="${i}" aria-label="Remove row">×</button></div>`).join("")}</div>
       <div class="actions"><button class="btn" data-act="sAdd">+ row</button><button class="btn primary" data-act="sSave">Save scale</button></div>`;
   }
   let sd = null;
   const openScale = () => { sd = JSON.parse(JSON.stringify(S.scale)); openDlg("Grading scale", scaleHTML(sd)); };
-  const backupText = () => JSON.stringify(S, null, 1);
+  const backupText = () => JSON.stringify({ ...S, sync: S.sync ? { ...S.sync, token: "" } : null }, null, 1);
+
+  const siteOf = (s) => {
+    try {
+      const u = new URL(/^https?:\/\//i.test(s.trim()) ? s.trim() : "https://" + s.trim());
+      return u.origin + u.pathname.replace(/\/(?:my|course|grade|user|mod|login|webservice|report|calendar|admin|index\.php)\b.*$/i, "").replace(/\/+$/, "");
+    } catch (e) { return ""; }
+  };
+  async function ws(fn, p = {}) {
+    const y = S.sync;
+    let r;
+    try { r = await fetch(y.site + "/webservice/rest/server.php", { method: "POST", body: new URLSearchParams({ wstoken: y.token, wsfunction: fn, moodlewsrestformat: "json", ...p }) }); }
+    catch (e) { throw new Error(window.chrome?.runtime?.id ? "could not reach Moodle" : "the browser blocked the request. Moodle does not let web pages read it. Use the extension build (see README)"); }
+    let j;
+    try { j = await r.json(); } catch (e) { throw new Error("Moodle did not answer like a web service. Check the address"); }
+    if (j && j.exception) throw new Error(j.message || j.errorcode || "Moodle refused");
+    return j;
+  }
+  const ensureAccess = async (site) => (window.chrome?.permissions?.request ? chrome.permissions.request({ origins: [new URL(site).origin + "/*"] }) : true);
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
+  function syncLabel() {
+    const e = $("syncSt"), y = S.sync;
+    if (e) e.textContent = !y || !y.token ? "" : syncing ? "syncing" : y.last ? ago(y.last) : "on";
+  }
+  const sigOf = (comps) => JSON.stringify(comps.map((c) => [c.n, c.items.map((i) => i.n)]));
+  let syncing = false;
+  async function syncNow() {
+    const y = S.sync;
+    if (!y || !y.token || syncing) return;
+    syncing = true;
+    syncLabel();
+    const keep = sel, errs = [];
+    let items = 0, made = 0;
+    for (const mc of (y.courses || []).filter((c) => y.track[c.id])) {
+      try {
+        const d = G.parseMoodle(JSON.stringify({ moodle: 1, rows: G.wsRows(await ws("gradereport_user_get_grade_items", { courseid: mc.id, userid: y.userid })) }));
+        if (!d.count) continue;
+        const sig = sigOf(d.comps);
+        let c = S.courses.find((x) => x.mc === mc.id);
+        if (!c) { c = newCourse(mc.name, d.comps, d.cr); c.mc = mc.id; made++; }
+        if (c.sig !== sig) {
+          if (c.sig) for (const k of Object.keys(S.scores)) if (k.startsWith(c.id + "|")) delete S.scores[k];
+          c.comps = d.comps;
+          c.sig = sig;
+        }
+        for (const [k, v] of Object.entries(d.scores)) { S.scores[`${c.id}|${k}`] = v; items++; }
+      } catch (e) { errs.push(`${mc.name}: ${e.message}`); }
+    }
+    sel = keep && S.courses.find((c) => c.id === keep) ? keep : S.courses[0] && S.courses[0].id;
+    y.last = Date.now();
+    y.msg = errs.length ? errs.join("; ") : `${items} grades from ${(y.courses || []).filter((c) => y.track[c.id]).length} courses${made ? `, ${made} new` : ""}`;
+    syncing = false;
+    flushSoon();
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !dlg.open;
+    const redraw = () => { renderAll(); syncLabel(); };
+    typing ? setTimeout(redraw, 4000) : redraw();
+    const m = $("syMsg");
+    if (m) { m.textContent = (errs.length ? "Problem: " : "Done: ") + y.msg; m.className = errs.length ? "foot fail" : "foot ok"; }
+    return errs.length === 0;
+  }
+  function flushSoon() { S.savedAt = Date.now(); clearTimeout(saveT); flush(); }
+  function syncHTML() {
+    const y = S.sync;
+    if (!y || !y.token) return `<ol class="steps"><li>In Moodle open your profile menu, <b>Preferences</b>, <b>Security keys</b> (or go to <b>your-moodle/user/managetoken.php</b>).</li><li>Copy the key for <b>Moodle mobile web service</b>.</li><li>Paste your Moodle address and the key here.</li></ol>
+      <div class="row2"><label class="fld">Moodle address<input id="syncSite" placeholder="https://lms.your-school.edu" value="${esc(y ? y.site : "")}" autocomplete="off"></label><label class="fld">Security key<input id="syncTok" type="password" autocomplete="off" spellcheck="false"></label></div>
+      <p class="foot" style="margin:0">The key stays in this browser, goes only to the address above, and is left out of backups. It reads grades. It cannot change them. If your school hides the key page, the mobile service is off: use the paste import instead.</p>
+      <div class="actions"><button class="btn primary" data-act="syConnect">Connect</button><span class="foot" id="syMsg" aria-live="polite"></span></div>`;
+    return `<p class="meta" style="margin:0">Connected to <b>${esc(y.site)}</b>${y.name ? ` as <b>${esc(y.name)}</b>` : ""}. ${y.last ? "Last sync " + ago(y.last) + "." : "Not synced yet."}</p>
+      <div class="clist">${(y.courses || []).map((c) => `<label class="chk"><input type="checkbox" data-mc="${c.id}"${y.track[c.id] ? " checked" : ""}><span>${esc(c.name)}</span></label>`).join("") || '<p class="muted" style="margin:0">No courses found.</p>'}</div>
+      <label class="fld">Sync every<select class="ctl" id="syMin">${[[0, "Never, only when I press the button"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"]].map(([v, l]) => `<option value="${v}"${y.minutes === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+      <p class="foot" style="margin:0">Checked courses are built from Moodle on the first sync, then grades update. Syncing runs while this page is open. Grades you type on items Moodle has not graded stay.</p>
+      <div class="actions"><button class="btn primary" data-act="syNow">Sync now</button><button class="link bad" data-act="syOff">Disconnect and forget the key</button><span class="foot" id="syMsg" aria-live="polite">${esc(y.msg || "")}</span></div>`;
+  }
+  const openSync = () => openDlg("Moodle sync", syncHTML());
+  async function syConnect() {
+    const m = $("syMsg"), site = siteOf($("syncSite").value), token = $("syncTok").value.trim();
+    const say = (t, bad) => { m.textContent = t; m.className = "foot" + (bad ? " fail" : ""); };
+    if (!site || !token) { say("Fill in both fields.", true); return; }
+    say("Connecting…");
+    const prev = S.sync;
+    try {
+      if (!(await ensureAccess(site))) throw new Error("permission to reach that site was declined");
+      S.sync = { site, token, userid: 0, name: "", minutes: 30, track: {}, courses: [], last: 0, msg: "" };
+      const info = await ws("core_webservice_get_site_info");
+      const list = await ws("core_enrol_get_users_courses", { userid: info.userid });
+      S.sync.userid = info.userid;
+      S.sync.name = info.fullname || "";
+      S.sync.courses = (Array.isArray(list) ? list : []).map((c) => ({ id: c.id, name: c.fullname || c.shortname || "Course " + c.id }));
+      for (const c of S.sync.courses) S.sync.track[c.id] = true;
+      flushSoon();
+      $("dlgBody").innerHTML = syncHTML();
+      syncLabel();
+    } catch (e) { S.sync = prev; say("Could not connect: " + e.message, true); }
+  }
+  setInterval(() => {
+    const y = S.sync;
+    if (y && y.token && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow();
+    syncLabel();
+  }, 30000);
   const openBackup = () => openDlg("Backup", `<p class="foot" style="margin:0">Data lives in this browser only. Copy or download it. Paste it back to restore. Old artifact backups work too.</p>
     <pre class="code" id="bkView">${backupText().split("\n").map((l) => `<span>${esc(l)}</span>`).join("")}</pre>
     <div class="actions"><button class="btn" data-act="bkCopy">Copy</button><button class="btn" data-act="bkDownload">Download</button><span class="foot" id="bkMsg"></span></div>
-    <label class="lbl" for="bkIn">restore from backup text</label><textarea id="bkIn" spellcheck="false" placeholder="Paste backup here"></textarea>
+    <label class="kl" for="bkIn">restore from backup text</label><textarea id="bkIn" spellcheck="false" placeholder="Paste backup here"></textarea>
     <div class="actions"><button class="btn primary" data-act="bkRestore">Restore</button><button class="link bad" data-act="wipe">Delete all data</button></div>`);
 
   $("dlgBody").addEventListener("click", (e) => {
@@ -565,6 +699,9 @@
       save();
       status("added " + c.name);
     }
+    else if (a === "syConnect") syConnect();
+    else if (a === "syNow") { t.disabled = true; $("syMsg").textContent = "Syncing…"; syncNow().finally(() => { t.disabled = false; }); }
+    else if (a === "syOff") { S.sync = null; flushSoon(); $("dlgBody").innerHTML = syncHTML(); syncLabel(); }
     else if (a === "bmCopy") { navigator.clipboard?.writeText(BOOKMARKLET).then(() => { t.textContent = "copied. new bookmark, paste as address."; }, () => { t.textContent = "copy failed here"; }); }
     else if (a === "moDo") { const txt = $("motxt").value.trim(); if (txt) { mo = G.parseMoodle(txt); $("moOut").innerHTML = moHTML(); } }
     else if (a === "moApply") {
@@ -646,6 +783,9 @@
     if (t.id === "presetSel" && t.value && sd) { sd = JSON.parse(JSON.stringify(G.PRESETS[t.value])); $("dlgBody").innerHTML = scaleHTML(sd); }
     if (t.id === "sclRound" && sd) sd.round = t.checked;
     if (t.id === "file" && t.files[0]) takeFile(t.files[0]);
+    if (t.id === "ocrLang") lsSet(LANG_KEY, t.value);
+    if (t.dataset.mc && S.sync) { S.sync.track[t.dataset.mc] = t.checked; save(); }
+    if (t.id === "syMin" && S.sync) { S.sync.minutes = +t.value; save(); }
   });
   $("dlgBody").addEventListener("dragover", (e) => { if (e.target.closest("#drop")) { e.preventDefault(); $("drop").classList.add("over"); } });
   $("dlgBody").addEventListener("dragleave", () => $("drop")?.classList.remove("over"));
@@ -658,6 +798,7 @@
       ...S.courses.map((c) => ({ l: c.name, h: "course", run: () => select(c.id) })),
       { l: "Add course", h: "action", run: addByHand },
       { l: "Import syllabus or Moodle grades", h: "action", run: openImport },
+      { l: "Moodle sync", h: "action", run: openSync },
       { l: "Grading scale", h: "action", run: openScale },
       { l: "Backup and restore", h: "action", run: openBackup },
       { l: "Load example courses", h: "action", run: loadExample },
@@ -687,5 +828,6 @@
   applyTheme();
   initStrip();
   renderAll();
-  status(S.savedAt ? "loaded · local" : "nothing saved yet · local");
+  status(S.savedAt ? "Loaded · stays on this device" : "Nothing saved yet · stays on this device");
+  setTimeout(() => { const y = S.sync; if (y && y.token && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow(); }, 1500);
 })();

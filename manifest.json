@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "GPA Planner",
+  "version": "1.0.0",
+  "description": "Plan the grades you need for the GPA you want. Everything stays on your device.",
+  "action": { "default_title": "GPA Planner" },
+  "background": { "service_worker": "background.js" },
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self' blob:" }
+}

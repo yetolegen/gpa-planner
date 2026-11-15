@@ -48,6 +48,25 @@ test("moodle: pasted table, bookmarklet json, score fill", () => {
   assert.deepStrictEqual(j.scores, { "0|0": 90, "1|0": 70 });
 });
 
+test("moodle web service answer becomes course structure and scores", () => {
+  const ws = { usergrades: [{ gradeitems: [
+    { itemname: "HW 1", itemtype: "mod", iteminstance: 1, categoryid: 20, weightformatted: "20.00 %", gradeformatted: "90.00", grademin: 0, grademax: 100, percentageformatted: "90.00 %" },
+    { itemname: "HW 2", itemtype: "mod", iteminstance: 2, categoryid: 20, weightformatted: "20.00 %", gradeformatted: "-", grademin: 0, grademax: 100, percentageformatted: "-" },
+    { itemname: "Homework total", itemtype: "category", iteminstance: 20, weightformatted: "40.00 %" },
+    { itemname: "Exam", itemtype: "mod", iteminstance: 3, categoryid: 10, weightformatted: "60.00 %", gradeformatted: "70.00", grademin: 0, grademax: 100, percentageformatted: "70.00 %" },
+    { itemtype: "course", iteminstance: 10 }] }] };
+  const d = G.parseMoodle(JSON.stringify({ moodle: 1, rows: G.wsRows(ws) }));
+  assert.deepStrictEqual(d.comps.map((c) => [c.n, c.w, c.items.length]), [["Homework", 40, 2], ["Exam", 60, 1]]);
+  assert.deepStrictEqual(d.scores, { "0|0": 90, "1|0": 70 });
+});
+
+test("moodle link becomes the grades report link", () => {
+  assert.strictEqual(G.moodleReportUrl("https://moodle.example.edu/course/view.php?id=42"), "https://moodle.example.edu/grade/report/user/index.php?id=42");
+  assert.strictEqual(G.moodleReportUrl("https://x.edu/moodle/grade/report/user/index.php?id=9&userid=3"), "https://x.edu/moodle/grade/report/user/index.php?id=9");
+  assert.strictEqual(G.moodleReportUrl("https://x.edu/my/"), null);
+  assert.strictEqual(G.moodleReportUrl("not a url"), null);
+});
+
 test("old backup migrates; term plan", () => {
   const old = { courses: [{ id: "os", name: "OS", cr: 5, mid: [{ n: "A1", w: 50 }, { n: "Mid", w: 50 }], end: [{ n: "E", w: 100 }] }], scores: { "os.mid.0": 90, "os.final": 80 }, W: { mid: 30, end: 30, fin: 40 }, cg: { terms: [{ g: 3.5, r: false }], target: 3.7 } };
   const m = G.migrateV1(old);
