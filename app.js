@@ -50,7 +50,7 @@
     put(prev || now);
     if (prev && !reduce) {
       void ind.offsetWidth;
-      ind.style.transition = "transform .36s cubic-bezier(.3,1.25,.5,1), width .36s cubic-bezier(.3,1.25,.5,1)";
+      ind.style.transition = "transform .36s cubic-bezier(.23,1,.32,1)";
     }
     put(now);
     gpos.set(key, now);
@@ -227,8 +227,8 @@
       pills.innerHTML = nb(-1, "‹", "Higher goal") + `<span class="gl"><b>${esc(gb[1])}</b> ${r.goal === r.best ? "best possible" : f2(gb[2])}</span>` + nb(1, "›", "Lower goal");
     }
     const sec = Math.min(100, r.earned), pos = Math.min(100, r.earned + r.rest);
-    $("mfS").style.width = sec + "%";
-    $("mfP").style.width = pos + "%";
+    $("mfS").style.transform = `scaleX(${sec / 100})`;
+    $("mfP").style.transform = `scaleX(${pos / 100})`;
     const mk = $("cvMk"), cut = r.goal === null ? null : G.cutoff(r.goal, S.scale);
     mk.hidden = cut === null || !live;
     if (cut !== null) { mk.style.left = Math.min(100, cut) + "%"; mk.dataset.l = f1(cut); }
@@ -288,7 +288,7 @@
       if (t.g === null) { val = row ? row.g : null; st = !row ? ["", "", ""] : row.st === "now" ? ["this term", "t-ok", ""] : tagFor(row.g); }
       const bar = $("pb-" + i), pv = $("pv-" + i), ps = $("ps-" + i);
       if (!bar) return;
-      bar.style.width = val === null ? "0%" : Math.min(100, (val / tp) * 100) + "%";
+      bar.style.transform = `scaleX(${val === null ? 0 : Math.min(1, val / tp)})`;
       bar.className = st[2];
       pv.textContent = val === null ? "" : val > tp + 1e-9 ? "over " + f2(tp) : f2(val);
       ps.innerHTML = st[0] ? `<span class="tg ${st[1]}">${st[0]}</span>` : "";
