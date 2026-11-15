@@ -891,6 +891,32 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); pal.open ? pal.close() : openPal(); }
   });
 
+  function renderWidget() {
+    const el = $("wg") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "wg" }));
+    if (!S.courses.length) { el.innerHTML = '<div class="wg"><p class="wg-empty">No courses yet.</p><div class="wg-foot"><a href="./" target="_blank">Open app</a></div></div>'; return; }
+    const x = G.summarize(S.courses, S.scores, S.scale, S.goals, S.cg.boost);
+    const rows = S.courses.map((c) => {
+      const r = G.calcCourse(c, S.scores, S.scale, S.goals), live = c.comps.some((i) => i.items.length), n = needOf(r), st = mkStatus(r, live, n);
+      const right = r.final !== null ? bandOf(r.final)[1] : r.goal === null ? "out of reach" : n <= 0 ? "secured" : "need " + n;
+      return `<li><i class="dotc ${st ? st[1] : ""}"></i><span class="nm">${esc(c.name)}</span><b class="num">${right}</b></li>`;
+    }).join("");
+    el.innerHTML = `<div class="wg"><div class="wg-top"><div><span class="kl">GPA if you hit your goals</span><b class="wg-big num">${x.goal === null ? "–" : f2(x.goal)}</b></div><div><span class="kl">Now</span><b class="wg-now num">${x.now === null ? "–" : f2(x.now)}</b></div></div><ul>${rows}</ul><div class="wg-foot"><button class="link" data-wg="pip">Keep on top</button><a href="./" target="_blank">Open app</a></div></div>`;
+  }
+  async function floatWidget() {
+    if (!window.documentPictureInPicture) { document.querySelector("[data-wg]").textContent = "Needs a newer Chrome"; return; }
+    const pip = await documentPictureInPicture.requestWindow({ width: 340, height: 320 });
+    for (const ss of document.styleSheets) if (ss.href) { const l = pip.document.createElement("link"); l.rel = "stylesheet"; l.href = ss.href; pip.document.head.appendChild(l); }
+    pip.document.body.append($("wg"));
+    pip.addEventListener("pagehide", () => document.body.append($("wg")));
+  }
+  if (location.hash === "#widget") {
+    document.body.classList.add("widget");
+    applyTheme();
+    renderWidget();
+    document.addEventListener("click", (e) => { if (e.target.closest("[data-wg=pip]")) floatWidget(); });
+    addEventListener("storage", (e) => { if (e.key === STORE || e.key === THEME_KEY) { S = load(); applyTheme(); renderWidget(); } });
+    return;
+  }
   applyTheme();
   initStrip();
   renderAll();

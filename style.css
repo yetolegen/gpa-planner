@@ -314,3 +314,19 @@ input:focus, textarea:focus, select.ctl:focus { border: 0; border-bottom: 2px so
 textarea, textarea:focus { border: 0; background: var(--subtle); padding: 12px; box-shadow: none; }
 dialog { border: 0; box-shadow: 0 0 0 1px var(--rule), 0 16px 48px rgba(0, 0, 0, .18); }
 #palQ, #palQ:focus { border: 0; border-bottom: 1px solid var(--rule); }
+
+body.widget .app { display: none; }
+#wg { min-height: 100vh; }
+.wg { display: grid; gap: 12px; padding: 16px; }
+.wg-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.wg-top > div { display: grid; gap: 2px; }
+.wg-big { font-size: 44px; line-height: 44px; font-weight: 600; letter-spacing: -.02em; }
+.wg-now { font-size: 20px; line-height: 28px; font-weight: 600; }
+.wg ul { margin: 0; padding: 0; list-style: none; }
+.wg li { display: flex; align-items: center; gap: 12px; min-height: 36px; border-top: 1px solid var(--rule); }
+.wg li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wg li b { font-size: 13px; font-weight: 600; }
+.wg li .dotc { position: static; flex: none; width: 10px; height: 10px; }
+.wg-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.wg-foot a { color: var(--ink2); text-underline-offset: 3px; }
+.wg-empty { margin: 0; color: var(--ink2); }
