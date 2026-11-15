@@ -289,3 +289,12 @@ dialog { border: 0; border-radius: 20px; box-shadow: 0 24px 80px rgba(0, 0, 0, .
 
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.strip { grid-template-columns: repeat(4, auto); justify-content: start; gap: 12px 56px; padding: 0 4px; }
+.k:first-child .kv { font-size: 40px; font-weight: 560; letter-spacing: -.045em; color: var(--acc); }
+.kv { font-size: 40px; font-weight: 560; letter-spacing: -.045em; }
+.k { gap: 2px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 12px 44px; align-items: start; }
+.groups .grp { margin-top: 0; }
+.cgp .link { margin-top: 4px; }
+@media (max-width: 880px) { .strip { grid-template-columns: 1fr 1fr; } }

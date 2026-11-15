@@ -199,7 +199,7 @@
       <div id="cvEdit">${editing.has(c.id) ? editorHTML(c) : ""}</div>
       <div class="answer"><div class="goalrow"><span class="kl">Goal grade</span><div class="gstep" id="cvPills"></div></div><div class="need" id="cvGoal"></div></div>
       <div class="meter"><div class="bar2"><i class="mf pos" id="mfP"></i><i class="mf sec" id="mfS"></i><i class="mk2" id="cvMk" hidden></i></div><div class="mleg" id="cvLeg"></div></div>
-      <div>${rows}</div></div>`;
+      <div class="groups">${rows}</div></div>`;
   }
   function renderCourse() {
     const c = cur();
@@ -245,11 +245,14 @@
     });
   }
 
+  let cgAll = false;
   const termNo = (i) => S.cg.terms.slice(0, i + 1).filter((x) => x.r === S.cg.terms[i].r).length;
   const termName = (i) => (S.cg.terms[i].r ? `R${termNo(i)}` : `T${termNo(i)}`);
   const termYear = (i) => (S.cg.terms[i].r ? "retake" : `Y${Math.ceil(termNo(i) / S.cg.perYear)}`);
   function cgSkeleton() {
     const cg = S.cg, T = top();
+    const firstOpen = cg.terms.findIndex((t) => t.g === null && !t.r), lastFilled = cg.terms.reduce((m, t, i) => (t.g !== null || t.r ? i : m), -1);
+    const shownTo = Math.max(firstOpen < 0 ? 0 : firstOpen, lastFilled), hidden = cg.terms.length - 1 - shownTo;
     const chips = [0.75, 0.875, 0.925, 0.975, 1].map((f) => Math.round(T * f * 100) / 100);
     $("cg").innerHTML = `<div class="cgp"><div class="tgt">
       <div class="tgt-main"><label class="kl" for="cgTarget">Target CGPA</label>
@@ -259,7 +262,7 @@
         <div class="chips seg" id="segY" role="group" aria-label="Deadline">${[1, 2, 3, 4, 5, 6].map((y) => `<button class="chip${cg.years === y ? " on" : ""}" data-years="${y}">Y${y}</button>`).join("")}</div></div>
       <div class="mini"><label>terms/yr <input id="perYear" type="number" min="1" max="6" value="${cg.perYear}"></label></div></div>
       <p class="tgt-line" id="cgHead"></p>
-      <table class="tt"><thead><tr><th>Term</th><th>Year</th><th>GPA</th><th>Plan</th><th></th><th></th><th></th></tr></thead><tbody>${cg.terms.map((t, i) => `<tr><td class="m">${termName(i)}</td><td class="m">${termYear(i)}</td><td class="${t.r ? "dashed" : ""}"><input data-term="${i}" type="number" min="0" max="${T}" step="0.01" inputmode="decimal" placeholder="—" value="${t.g ?? ""}" aria-label="${termName(i)} GPA"></td><td><div class="bar"><i id="pb-${i}"></i></div></td><td class="pv" id="pv-${i}"></td><td id="ps-${i}"></td><td><button class="x" data-rm="${i}" aria-label="Remove ${termName(i)}">×</button></td></tr>`).join("")}</tbody></table>
+      <table class="tt"><thead><tr><th>Term</th><th>Year</th><th>GPA</th><th>Plan</th><th></th><th></th><th></th></tr></thead><tbody>${cg.terms.map((t, i) => (!cgAll && i > shownTo ? "" : `<tr><td class="m">${termName(i)}</td><td class="m">${termYear(i)}</td><td class="${t.r ? "dashed" : ""}"><input data-term="${i}" type="number" min="0" max="${T}" step="0.01" inputmode="decimal" placeholder="—" value="${t.g ?? ""}" aria-label="${termName(i)} GPA"></td><td><div class="bar"><i id="pb-${i}"></i></div></td><td class="pv" id="pv-${i}"></td><td id="ps-${i}"></td><td><button class="x" data-rm="${i}" aria-label="Remove ${termName(i)}">×</button></td></tr>`)).join("")}</tbody></table>${hidden ? `<button class="link" data-cg="more">${cgAll ? "Show fewer terms" : `Show ${hidden} more terms`}</button>` : cgAll && cg.terms.length > 3 ? '<button class="link" data-cg="more">Show fewer terms</button>' : ""}
       <div class="actions"><button class="btn" data-cg="retake">+ retake term</button><span class="foot" id="cgNote"></span></div></div>`;
     glide($("segT"), "segT");
     glide($("segY"), "segY");
@@ -298,7 +301,7 @@
     renderCourse();
     cgSkeleton();
     renderStrip();
-    $("foot").textContent = "Course total = weighted average of components. Goal starts at the best grade still possible; pick another to plan for it. Needed scores assume the same score on every item left, rounded up. Courses average by credits. CGPA treats every term as equal. All data stays in this browser.";
+    $("foot").textContent = "Course total = weighted average of components. Goal starts at the best grade still possible; pick another to plan for it. Needed scores assume the same score on every item left, rounded up. Courses average by credits. CGPA treats every term as equal. All data stays on this device.";
   }
   const gridOf = (c) => c.comps.map((comp, ci) => comp.items.map((x, ii) => S.scores[G.key(c.id, ci, ii)]));
   function putGrid(c, grid) {
@@ -414,6 +417,7 @@
     const t = e.target;
     const rm = t.closest("[data-rm]");
     if (rm) { S.cg.terms.splice(+rm.dataset.rm, 1); cgSkeleton(); renderStrip(); save(); return; }
+    if (t.closest("[data-cg=more]")) { cgAll = !cgAll; cgSkeleton(); renderStrip(); return; }
     if (t.closest("[data-cg=retake]")) { S.cg.terms.push({ g: null, r: true }); cgSkeleton(); renderStrip(); save(); return; }
     const yr = t.closest("[data-years]");
     if (yr) { S.cg.years = +yr.dataset.years; fixTerms(S.cg); cgSkeleton(); renderStrip(); save(); return; }
