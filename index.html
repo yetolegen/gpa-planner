@@ -3,45 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GPA Planner</title>
-<meta name="description" content="Plan the grades you need for the GPA you want. Import your syllabus or Moodle grades. Free, private, runs in your browser.">
+<title>gpa/planner</title>
+<meta name="description" content="Plan the grades you need for the GPA you want. Import syllabus or Moodle grades. Local only.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="hd">
-      <div>
-        <h1>GPA Planner</h1>
-        <p class="muted tag">Plan the grades you need for the GPA you want. Free, private, and everything stays in your browser.</p>
-      </div>
-      <div class="tools">
-        <button class="btn primary" id="openImport">Import syllabus or Moodle</button>
-        <button class="btn" id="openScale">Grading scale</button>
-        <button class="btn" id="openBackup">Backup</button>
-      </div>
-    </div>
-    <p class="foot muted" id="status" role="status"></p>
-  </header>
-  <section id="empty" class="course" hidden></section>
-  <div class="summary" id="sum"></div>
-  <div class="legend" id="legend" role="note"></div>
-  <section class="course" id="cg">
-    <div class="c-head"><h2>CGPA target</h2><span class="now">Now <b id="cgNow">–</b> after <span id="cgDone"></span> terms</span></div>
-    <div id="past" style="display:grid;gap:14px"></div>
-    <div id="cgOut" style="overflow-x:auto"></div>
-  </section>
-  <div id="list" style="display:grid;gap:16px"></div>
-  <div class="actions">
-    <button class="btn" id="addCourse">Add course</button>
-    <button class="link" id="loadExample">Load example courses</button>
-    <button class="link bad" id="resetBtn">Delete everything</button>
-  </div>
-  <p class="foot" id="foot"></p>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <main class="main">
+    <section>
+      <h3 class="sec"><b>01</b>Overview</h3>
+      <div class="strip" id="strip"></div>
+      <div class="legend" id="legend" role="note"></div>
+    </section>
+    <section>
+      <h3 class="sec"><b>02</b>Course</h3>
+      <div id="cv"></div>
+    </section>
+    <section>
+      <h3 class="sec"><b>03</b>Cumulative</h3>
+      <div id="cg"></div>
+    </section>
+    <p class="foot" id="foot"></p>
+  </main>
 </div>
 <dialog id="dlg" aria-labelledby="dlgTitle">
   <div class="dlg-head"><h2 id="dlgTitle"></h2><button class="x" id="dlgX" aria-label="Close">×</button></div>
   <div id="dlgBody"></div>
+</dialog>
+<dialog id="pal" aria-label="Command search">
+  <input id="palQ" autocomplete="off" spellcheck="false" placeholder="Jump to a course or run an action" aria-label="Search">
+  <ul id="palL" role="listbox"></ul>
 </dialog>
 <script src="core.js"></script>
 <script src="app.js"></script>

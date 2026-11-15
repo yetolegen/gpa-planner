@@ -10,6 +10,8 @@ Open `index.html`. That is it. Or host the folder anywhere (GitHub Pages, Netlif
 - GPA if you hit goals, best possible, current pace, improved pace
 - CGPA planner: target, terms per year, retakes, what each term must average
 - works with any grading scale: US 4.0, plain A-F, Kazakhstan / AITU, or your own table
+- `Ctrl K` command search: jump to a course or run any action. auto / light / dark theme
+- all local: no server, no tracking, Inter font bundled in `fonts/` (OFL license)
 
 ## import
 **syllabus** (PDF, Word .docx, or pasted text)
