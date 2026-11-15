@@ -894,13 +894,22 @@
   function renderWidget() {
     const el = $("wg") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "wg" }));
     if (!S.courses.length) { el.innerHTML = '<div class="wg"><p class="wg-empty">No courses yet.</p><div class="wg-foot"><a href="./" target="_blank">Open app</a></div></div>'; return; }
-    const x = G.summarize(S.courses, S.scores, S.scale, S.goals, S.cg.boost);
+    const x = G.summarize(S.courses, S.scores, S.scale, S.goals, S.cg.boost), cg = S.cg, tp = top(), T = +cg.target;
+    const fin = cg.terms.filter((t) => t.g !== null).map((t) => t.g), k = fin.length, cgpa = k ? fin.reduce((q, w) => q + w, 0) / k : null;
+    const p = G.cgPlan(cg.terms, T, x.goal ?? 0, tp);
+    const plan = p.ci >= 0 && p.L > 0 ? (p.a <= 0 ? "secured" : p.a > tp + 1e-9 ? "out of reach" : "avg " + f2(p.a) + " for " + p.L + " more terms") : "";
+    const cgLine = [cgpa === null ? "No terms yet" : "CGPA " + f2(cgpa), "target " + f2(T), plan].filter(Boolean).join(" · ");
     const rows = S.courses.map((c) => {
       const r = G.calcCourse(c, S.scores, S.scale, S.goals), live = c.comps.some((i) => i.items.length), n = needOf(r), st = mkStatus(r, live, n);
-      const right = r.final !== null ? bandOf(r.final)[1] : r.goal === null ? "out of reach" : n <= 0 ? "secured" : "need " + n;
-      return `<li><i class="dotc ${st ? st[1] : ""}"></i><span class="nm">${esc(c.name)}</span><b class="num">${right}</b></li>`;
+      let left = 0;
+      c.comps.forEach((comp, ci) => comp.items.forEach((_, ii) => { if (G.score(S.scores, c.id, ci, ii) === null) left++; }));
+      const cur = r.final ?? r.pace, now = cur === null ? "no grades yet" : show(cur) + "% " + bandOf(cur)[1];
+      const goal = r.goal === null ? "" : " · goal " + bandOf(r.goal)[1];
+      const right = r.final !== null ? "done" : r.goal === null ? "out of reach" : n <= 0 ? "secured" : "need " + n;
+      return `<li><i class="dotc ${st ? st[1] : ""}"></i><div class="wg-c"><span class="nm">${esc(c.name)}</span><small>${now}${goal} · ${left} left</small><span class="wg-bar"><i style="width:${Math.min(100, r.earned + r.rest)}%" class="p"></i><i style="width:${Math.min(100, r.earned)}%"></i></span></div><b class="num${n >= 90 && r.final === null ? " hard" : ""}">${right}</b></li>`;
     }).join("");
-    el.innerHTML = `<div class="wg"><div class="wg-top"><div><span class="kl">GPA if you hit your goals</span><b class="wg-big num">${x.goal === null ? "–" : f2(x.goal)}</b></div><div><span class="kl">Now</span><b class="wg-now num">${x.now === null ? "–" : f2(x.now)}</b></div></div><ul>${rows}</ul><div class="wg-foot"><button class="link" data-wg="pip">Keep on top</button><a href="./" target="_blank">Open app</a></div></div>`;
+    el.innerHTML = `<div class="wg"><div class="wg-top"><div><span class="kl">GPA if you hit your goals</span><b class="wg-big num">${x.goal === null ? "–" : f2(x.goal)}</b></div><div class="wg-r"><span class="kl">Now</span><b class="wg-now num">${x.now === null ? "–" : f2(x.now)}</b><span class="kl">Best ${x.max === null ? "–" : f2(x.max)}</span></div></div><p class="wg-cg">${esc(cgLine)}</p><ul>${rows}</ul><div class="wg-foot"><button class="link" data-wg="pip">Keep on top</button><a href="./" target="_blank">Open app</a></div></div>`;
+    if (window.gpaDesktop) gpaDesktop.resize(el.firstElementChild.offsetHeight);
   }
   async function floatWidget() {
     if (!window.documentPictureInPicture) { document.querySelector("[data-wg]").textContent = "Needs a newer Chrome"; return; }
@@ -913,7 +922,7 @@
     document.body.classList.add("widget");
     applyTheme();
     renderWidget();
-    document.addEventListener("click", (e) => { if (e.target.closest("[data-wg=pip]")) floatWidget(); });
+    document.addEventListener("click", (e) => { const b = e.target.closest("[data-wg=pip]"); if (!b) return; if (window.gpaDesktop) gpaDesktop.toggleTop().then((on) => { b.textContent = on ? "On top" : "Keep on top"; }); else floatWidget(); });
     addEventListener("storage", (e) => { if (e.key === STORE || e.key === THEME_KEY) { S = load(); applyTheme(); renderWidget(); } });
     return;
   }
