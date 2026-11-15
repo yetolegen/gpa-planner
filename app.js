@@ -184,9 +184,9 @@
         <label>Min %<input data-ed="cm" data-ci="${ci}" type="number" min="0" max="100" step="any" placeholder="none" value="${comp.min ?? ""}"></label>
         <button class="x" data-act="rmComp" data-ci="${ci}" aria-label="Remove ${esc(comp.n)}">×</button></div>
         ${comp.items.map((x, ii) => `<div class="edrow"><input data-ed="in" data-ci="${ci}" data-ii="${ii}" value="${esc(x.n)}" aria-label="Item name"><input data-ed="iw" data-ci="${ci}" data-ii="${ii}" type="number" min="0" step="any" value="${x.w}" aria-label="Item points"><button class="x" data-act="rmItem" data-ci="${ci}" data-ii="${ii}" aria-label="Remove ${esc(x.n)}">×</button></div>`).join("")}
-        <button class="link" data-act="addItem" data-ci="${ci}">+ item</button></div>`).join("")}</div>
+        <button class="link" data-act="addItem" data-ci="${ci}">Add item</button></div>`).join("")}</div>
       <p class="foot">Weights scale to 100. Item points scale inside each component. Min % is optional: finish a component under it and you get a warning.</p>
-      <div class="actions"><button class="btn" data-act="addComp">+ component</button><button class="link bad" data-act="delCourse">${confirmDel === c.id ? "Click again: delete course and its grades" : "Delete course"}</button></div></div>`;
+      <div class="actions"><button class="btn" data-act="addComp">Add component</button><button class="link bad" data-act="delCourse">${confirmDel === c.id ? "Click again: delete course and its grades" : "Delete course"}</button></div></div>`;
   }
   function courseHTML(c) {
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
@@ -265,7 +265,7 @@
       <div class="mini"><label>terms/yr <input id="perYear" type="number" min="1" max="6" value="${cg.perYear}"></label></div></div>
       <p class="tgt-line" id="cgHead"></p>
       <table class="tt"><thead><tr><th>Term</th><th>Year</th><th>GPA</th><th>Plan</th><th></th><th></th><th></th></tr></thead><tbody>${cg.terms.map((t, i) => (!cgAll && i > shownTo ? "" : `<tr><td class="m">${termName(i)}</td><td class="m">${termYear(i)}</td><td class="${t.r ? "dashed" : ""}"><input data-term="${i}" type="number" min="0" max="${T}" step="0.01" inputmode="decimal" placeholder="—" value="${t.g ?? ""}" aria-label="${termName(i)} GPA"></td><td><div class="bar"><i id="pb-${i}"></i></div></td><td class="pv" id="pv-${i}"></td><td id="ps-${i}"></td><td><button class="x" data-rm="${i}" aria-label="Remove ${termName(i)}">×</button></td></tr>`)).join("")}</tbody></table>${hidden ? `<button class="link" data-cg="more">${cgAll ? "Show fewer terms" : `Show ${hidden} more terms`}</button>` : cgAll && cg.terms.length > 3 ? '<button class="link" data-cg="more">Show fewer terms</button>' : ""}
-      <div class="actions"><button class="btn" data-cg="retake">+ retake term</button><span class="foot" id="cgNote"></span></div></div>`;
+      <div class="actions"><button class="btn" data-cg="retake">Add retake term</button><span class="foot" id="cgNote"></span></div></div>`;
     glide($("segT"), "segT");
     glide($("segY"), "segY");
   }
@@ -449,7 +449,7 @@
     return `<p class="${s.exact ? "ok" : "fail"}" style="margin:0">${s.exact ? "Found a grading table that adds to 100%. Check it, then create." : s.comps.length ? "No table adds to 100%. Fix the numbers." : "No grading percentages found. Paste the grading section, or add components by hand."}</p>
       <div class="edtop"><label>Course name<input id="sylName" data-d="name" value="${esc(s.name)}"></label><label>Credits<input data-d="cr" type="number" min="0" step="any" value="${s.cr}"></label></div>
       <table class="dt"><thead><tr><th>Component</th><th>Weight %</th><th>Items</th><th></th></tr></thead><tbody>${s.comps.map((c, i) => `<tr><td><input data-d="cn" data-i="${i}" value="${esc(c.n)}" aria-label="Component name"></td><td><input class="n" data-d="cw" data-i="${i}" type="number" min="0" step="any" value="${c.w}" aria-label="Weight"></td><td><input class="n" data-d="ck" data-i="${i}" type="number" min="1" max="30" value="${c.items.length}" aria-label="Number of items"></td><td><button class="x" data-act="dRm" data-i="${i}" aria-label="Remove">×</button></td></tr>`).join("")}</tbody></table>
-      <p class="foot" style="margin:0">total <b id="sylSum">${sumComps(s)}</b>% <button class="link" data-act="dAdd">+ component</button></p>
+      <p class="foot" style="margin:0">total <b id="sylSum">${sumComps(s)}</b>% <button class="link" data-act="dAdd">Add component</button></p>
       ${s.scale ? `<label class="chk"><input type="checkbox" id="useScale" checked><span>Also use the grade scale in this file: ${s.scale.rows.map((r) => `${esc(r[1])} ${r[0]}+`).join(", ")}</span></label>` : ""}
       <div class="actions"><button class="btn primary" data-act="sylCreate"${s.comps.length ? "" : " disabled"}>Create course</button></div>`;
   }
@@ -572,10 +572,10 @@
   }
 
   function scaleHTML(d) {
-    return `<label class="kl" for="presetSel">preset</label><select class="ctl" id="presetSel"><option value="">Choose…</option>${Object.entries(G.PRESETS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join("")}</select>
+    return `<label class="kl" for="presetSel">Preset</label><select class="ctl" id="presetSel"><option value="">Choose a preset</option>${Object.entries(G.PRESETS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join("")}</select>
       <label class="chk"><input type="checkbox" id="sclRound"${d.round ? " checked" : ""}><span>Round course total to whole number before grading (94.5 counts as 95)</span></label>
-      <div class="scl"><div class="r h"><span>from %</span><span>letter</span><span>points</span><span></span></div>${d.rows.map((r, i) => `<div class="r"><input data-s="0" data-i="${i}" type="number" step="any" value="${r[0]}" aria-label="Minimum percent"><input class="l" data-s="1" data-i="${i}" value="${esc(r[1])}" aria-label="Letter"><input data-s="2" data-i="${i}" type="number" step="any" value="${r[2]}" aria-label="Points"><button class="x" data-act="sRm" data-i="${i}" aria-label="Remove row">×</button></div>`).join("")}</div>
-      <div class="actions"><button class="btn" data-act="sAdd">+ row</button><button class="btn primary" data-act="sSave">Save scale</button></div>`;
+      <div class="scl"><div class="r h"><span>From %</span><span>Letter</span><span>Points</span><span></span></div>${d.rows.map((r, i) => `<div class="r"><input data-s="0" data-i="${i}" type="number" step="any" value="${r[0]}" aria-label="Minimum percent"><input class="l" data-s="1" data-i="${i}" value="${esc(r[1])}" aria-label="Letter"><input data-s="2" data-i="${i}" type="number" step="any" value="${r[2]}" aria-label="Points"><button class="x" data-act="sRm" data-i="${i}" aria-label="Remove row">×</button></div>`).join("")}</div>
+      <div class="actions"><button class="btn" data-act="sAdd">Add row</button><button class="btn primary" data-act="sSave">Save scale</button></div>`;
   }
   let sd = null;
   const openScale = () => { sd = JSON.parse(JSON.stringify(S.scale)); openDlg("Grading scale", scaleHTML(sd)); };
