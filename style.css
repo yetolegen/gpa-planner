@@ -292,3 +292,25 @@ dialog { border: 1px solid var(--ink2); box-shadow: 0 16px 48px rgba(0, 0, 0, .1
 #palQ, #palQ:focus { border: 0; border-bottom: 1px solid var(--rule); }
 #palL li.sel { background: var(--ink); color: var(--bg); }
 .tg { text-transform: none; }
+
+.btn, .opt, .stepper button, .x, .kbtn, .seg > button { border: 0; box-shadow: none; background: transparent; }
+.btn:hover:not(:disabled), .x:hover:not(:disabled), .stepper button:hover, .kbtn:hover, .opt:hover, .seg > button:hover { background: var(--subtle); border: 0; }
+.btn.primary { background: var(--ink); color: var(--bg); border: 0; }
+.btn.primary:hover:not(:disabled) { background: var(--ink); opacity: .88; }
+.seg > button { margin-left: 0; }
+.seg > button.on, .seg > button.on:hover { background: transparent; border: 0; color: var(--bg); }
+.kbtn { background: var(--subtle); }
+.x { color: var(--ink2); }
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select.ctl { border: 0; border-bottom: 1px solid var(--rule); background: transparent; padding: 0 4px; }
+input:hover, select.ctl:hover { border: 0; border-bottom: 1px solid var(--ink2); background: transparent; }
+input:focus, textarea:focus, select.ctl:focus { border: 0; border-bottom: 2px solid var(--ink); padding: 0 4px; padding-bottom: 0; background: transparent; box-shadow: none; }
+.stepper input, .stepper input:hover { border-bottom-color: transparent; }
+.tt .dashed input { border-bottom-style: dashed; }
+.k select { border: 0; background: var(--subtle); }
+.ed { border: 0; padding: 16px 0; }
+.ed input, .fld input { background: transparent; }
+.drop { border: 0; background: var(--subtle); }
+.code { border: 0; background: var(--subtle); }
+textarea, textarea:focus { border: 0; background: var(--subtle); padding: 12px; box-shadow: none; }
+dialog { border: 0; box-shadow: 0 0 0 1px var(--rule), 0 16px 48px rgba(0, 0, 0, .18); }
+#palQ, #palQ:focus { border: 0; border-bottom: 1px solid var(--rule); }
