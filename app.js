@@ -161,10 +161,7 @@
     refreshCg(S.courses.length ? x.goal : null);
   }
   function renderLegend() {
-    const rows = S.scale.rows;
-    $("legend").innerHTML = `<span>Scale: <b>${esc(S.scale.name)}</b></span>` +
-      rows.map((r, i) => `<span><b>${esc(r[1])}</b> ${f2(r[2])} ${i === rows.length - 1 ? "&lt;" + (rows[i - 1] ? rows[i - 1][0] : 0) : r[0] + "+"}</span>`).join("") +
-      (S.scale.round ? "<span>Totals round to whole first</span>" : "");
+    $("legend").innerHTML = `<span>Scale: <b>${esc(S.scale.name)}</b>${S.scale.round ? ", totals round to whole first" : ""}</span><button class="link" data-go="scale">Change</button>`;
   }
 
   function itemPct(c, r, ci, ii) {
@@ -200,8 +197,7 @@
       <div class="ct2"><div><h2 id="cvName">${esc(c.name)}</h2><p class="meta" id="cvMeta"></p></div>
         <button class="btn" data-act="toggleEdit" id="cvEditBtn">${editing.has(c.id) ? "Done" : "Edit"}</button></div>
       <div id="cvEdit">${editing.has(c.id) ? editorHTML(c) : ""}</div>
-      <div class="goalrow"><span class="kl">Goal grade</span><div class="pills seg" id="cvPills"></div></div>
-      <p class="goaltxt" id="cvGoal"></p>
+      <div class="answer"><div class="goalrow"><span class="kl">Goal grade</span><div class="gstep" id="cvPills"></div></div><div class="need" id="cvGoal"></div></div>
       <div class="meter"><div class="bar2"><i class="mf pos" id="mfP"></i><i class="mf sec" id="mfS"></i><i class="mk2" id="cvMk" hidden></i></div><div class="mleg" id="cvLeg"></div></div>
       <div>${rows}</div></div>`;
   }
@@ -219,14 +215,14 @@
     const n = needOf(r), st = mkStatus(r, live, n);
     $("cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : ""].filter(Boolean).join(" · ");
     const g = $("cvGoal"), pills = $("cvPills");
-    if (!live) { g.textContent = "Add grading components to see the score you need."; pills.innerHTML = ""; }
-    else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `Course done: <b>${show(r.final)}%</b> · ${esc(b[1])} ${f2(b[2])}`; pills.innerHTML = ""; }
-    else if (r.goal === null) { g.innerHTML = '<span class="fail">Full marks on everything left still misses a pass.</span>'; pills.innerHTML = ""; }
+    if (!live) { g.innerHTML = '<span class="sub">Add grading components to see the score you need.</span>'; pills.innerHTML = ""; }
+    else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `<span class="big">${esc(b[1])}</span><span class="sub">Course done: ${show(r.final)}% · GPA ${f2(b[2])}</span>`; pills.innerHTML = ""; }
+    else if (r.goal === null) { g.innerHTML = '<span class="sub fail">Full marks on everything left still misses a pass.</span>'; pills.innerHTML = ""; }
     else {
-      const gb = bandOf(r.goal);
-      g.innerHTML = `${r.goal === r.best ? "Best still possible" : "Goal"}: <b>${esc(gb[1])}</b> · GPA <b>${f2(gb[2])}</b> · needs total <b>${G.cutoff(r.goal, S.scale)}%</b>. ` + (n <= 0 ? "Already secured." : `Score at least <b>${n}</b> on every item left.`);
-      pills.innerHTML = r.reach.map(([t, l, p]) => { const s = r.need(t) <= 0; return `<button class="pill${t === r.goal ? " on" : ""}${s ? " done" : ""}" data-goal="${t}" aria-pressed="${t === r.goal}">${esc(l)}<small>${f2(p)} · ${s ? "secured" : "need " + Math.ceil(r.need(t) - 1e-9)}</small></button>`; }).join("");
-      glide(pills, "pills-" + c.id);
+      const gb = bandOf(r.goal), ix = r.reach.findIndex((q) => q[0] === r.goal);
+      g.innerHTML = n <= 0 ? `<span class="big ok">Secured</span><span class="sub">${esc(gb[1])} · GPA ${f2(gb[2])} is locked in</span>` : `<span class="big">${n}</span><span class="sub">needed on every item left for <b>${esc(gb[1])}</b> · GPA ${f2(gb[2])} · course total ${G.cutoff(r.goal, S.scale)}%</span>`;
+      const nb = (k, sym, lbl) => { const q = r.reach[ix + k]; return `<button class="x" ${q ? `data-goal="${q[0]}"` : "disabled"} aria-label="${lbl}">${sym}</button>`; };
+      pills.innerHTML = nb(-1, "‹", "Higher goal") + `<span class="gl"><b>${esc(gb[1])}</b> ${r.goal === r.best ? "best possible" : f2(gb[2])}</span>` + nb(1, "›", "Lower goal");
     }
     const sec = Math.min(100, r.earned), pos = Math.min(100, r.earned + r.rest);
     $("mfS").style.width = sec + "%";
@@ -352,6 +348,12 @@
     if (!t.dataset.k) return;
     S.scores[t.dataset.k] = t.value === "" ? null : +t.value;
     afterScore(cur());
+  });
+  $("cv").addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (!t.dataset || !t.dataset.k || !["Enter", "ArrowDown", "ArrowUp"].includes(e.key)) return;
+    const all = [...$("cv").querySelectorAll("input[data-k]")], n = all.indexOf(t) + (e.key === "ArrowUp" ? -1 : 1);
+    if (all[n]) { e.preventDefault(); all[n].focus(); all[n].select(); }
   });
   $("cv").addEventListener("change", (e) => {
     const t = e.target, ed = t.dataset.ed;
