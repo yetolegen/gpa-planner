@@ -106,6 +106,7 @@
   const show = (p) => (S.scale.round ? G.rd(p, S.scale) : f1(p));
   const bandOf = (p) => G.band(p, S.scale);
   const top = () => G.maxPts(S.scale);
+  const cof = (t) => S.courses.find((x) => x.id === (t.closest("[data-id]") || {}).dataset?.id);
   const cur = () => S.courses.find((c) => c.id === sel) || S.courses[0] || null;
   const mkStatus = (r, live, n) => (!live ? null : r.final !== null ? ["Done", "t-ok"] : r.goal === null ? ["Out of reach", "t-no"] : n <= 0 ? ["Secured", "t-ok"] : n >= 90 ? ["Tough", "t-hard"] : ["On track", "t-ok"]);
   const needOf = (r) => (r.goal === null ? null : Math.max(0, Math.ceil(r.need(r.goal) - 1e-9)));
@@ -191,32 +192,38 @@
   function courseHTML(c) {
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
     const rows = c.comps.map((comp, ci) => (comp.items.length
-      ? `<section class="grp"><header class="gh"><span class="gn">${esc(comp.n)}</span><span class="gw">${f1(r.w[ci] * 100)}% of course</span><span class="gs" id="gs-${ci}"></span></header>${comp.items.map((x, ii) => {
+      ? `<section class="grp"><header class="gh"><span class="gn">${esc(comp.n)}</span><span class="gw">${f1(r.w[ci] * 100)}% of course</span><span class="gs" data-ci="${ci}"></span></header>${comp.items.map((x, ii) => {
         const k = G.key(c.id, ci, ii), v = S.scores[k];
         return `<div class="r2"><i class="dt0" id="d-${k}"></i><span class="nm" title="${esc(x.n)}">${esc(x.n)}</span><span class="wt">${f1(itemPct(c, r, ci, ii))}%</span><input id="i-${k}" data-k="${k}" type="number" min="0" max="100" step="any" inputmode="decimal" value="${v ?? ""}" placeholder="—" aria-label="${esc(x.n)} score"><span class="hint" id="h-${k}"></span></div>`;
       }).join("")}</section>` : "")).join("") || '<p class="muted" style="margin:0">No components yet. Press Edit.</p>';
-    return `<div class="ch">
-      <div class="ct2"><div><h2 id="cvName">${esc(c.name)}</h2><p class="meta" id="cvMeta"></p></div>
-        <button class="btn" data-act="toggleEdit" id="cvEditBtn">${editing.has(c.id) ? "Done" : "Edit"}</button></div>
-      <div id="cvEdit">${editing.has(c.id) ? editorHTML(c) : ""}</div>
-      <div class="answer"><div class="goalrow"><span class="kl">Goal grade</span><div class="gstep" id="cvPills"></div></div><div class="need" id="cvGoal"></div></div>
-      <div class="meter"><div class="bar2"><i class="mf pos" id="mfP"></i><i class="mf sec" id="mfS"></i><i class="mk2" id="cvMk" hidden></i></div><div class="mleg" id="cvLeg"></div></div>
-      <div class="groups">${rows}</div></div>`;
+    return `<article class="ch" id="c-${c.id}" data-id="${c.id}">
+      <div class="ct2"><div><h2 class="cvName">${esc(c.name)}</h2><p class="meta cvMeta"></p></div>
+        <button class="btn" data-act="toggleEdit">${editing.has(c.id) ? "Done" : "Edit"}</button></div>
+      <div class="cvEdit">${editing.has(c.id) ? editorHTML(c) : ""}</div>
+      <div class="answer"><div class="goalrow"><span class="kl">Goal grade</span><div class="gstep cvPills"></div></div><div class="need cvGoal"></div></div>
+      <div class="meter"><div class="bar2"><i class="mf pos mfP"></i><i class="mf sec mfS"></i><i class="mk2 cvMk" hidden></i></div><div class="mleg cvLeg"></div></div>
+      <div class="groups">${rows}</div></article>`;
   }
   function renderCourse() {
-    const c = cur();
-    if (!c) { $("cv").innerHTML = emptyHTML(); return; }
-    sel = c.id;
-    $("cv").innerHTML = courseHTML(c);
+    if (!S.courses.length) { $("cv").innerHTML = emptyHTML(); return; }
+    $("cv").innerHTML = S.courses.map(courseHTML).join("");
+    S.courses.forEach(refreshCourse);
+  }
+  function renderOne(c) {
+    const el = $("c-" + c.id);
+    if (!el) { renderCourse(); return; }
+    el.outerHTML = courseHTML(c);
     refreshCourse(c);
   }
   function refreshCourse(c) {
-    if (!c || !$("cvName")) return;
+    const root = c && $("c-" + c.id);
+    if (!root) return;
+    const q = (x) => root.querySelector(x);
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
     const live = c.comps.some((x) => x.items.length);
     const n = needOf(r), st = mkStatus(r, live, n);
-    $("cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : ""].filter(Boolean).join(" · ");
-    const g = $("cvGoal"), pills = $("cvPills");
+    q(".cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : ""].filter(Boolean).join(" · ");
+    const g = q(".cvGoal"), pills = q(".cvPills");
     if (!live) { g.innerHTML = '<span class="sub">Add grading components to see the score you need.</span>'; pills.innerHTML = ""; }
     else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `<span class="big">${esc(b[1])}</span><span class="sub">Course done: ${show(r.final)}% · GPA ${f2(b[2])}</span>`; pills.innerHTML = ""; }
     else if (r.goal === null) { g.innerHTML = '<span class="sub fail">Full marks on everything left still misses a pass.</span>'; pills.innerHTML = ""; }
@@ -227,14 +234,14 @@
       pills.innerHTML = nb(-1, "‹", "Higher goal") + `<span class="gl"><b>${esc(gb[1])}</b> ${r.goal === r.best ? "best possible" : f2(gb[2])}</span>` + nb(1, "›", "Lower goal");
     }
     const sec = Math.min(100, r.earned), pos = Math.min(100, r.earned + r.rest);
-    $("mfS").style.transform = `scaleX(${sec / 100})`;
-    $("mfP").style.transform = `scaleX(${pos / 100})`;
-    const mk = $("cvMk"), cut = r.goal === null ? null : G.cutoff(r.goal, S.scale);
+    q(".mfS").style.transform = `scaleX(${sec / 100})`;
+    q(".mfP").style.transform = `scaleX(${pos / 100})`;
+    const mk = q(".cvMk"), cut = r.goal === null ? null : G.cutoff(r.goal, S.scale);
     mk.hidden = cut === null || !live;
     if (cut !== null) { mk.style.left = Math.min(100, cut) + "%"; mk.dataset.l = f1(cut); }
-    $("cvLeg").innerHTML = `<span><i class="sw sec"></i>Secured <b>${f1(r.earned)}</b></span><span><i class="sw pos"></i>Still possible <b>${f1(r.rest)}</b></span>` + (cut === null ? "" : `<span>Goal line <b>${f1(cut)}</b></span>`);
+    q(".cvLeg").innerHTML = `<span><i class="sw sec"></i>Secured <b>${f1(r.earned)}</b></span><span><i class="sw pos"></i>Still possible <b>${f1(r.rest)}</b></span>` + (cut === null ? "" : `<span>Goal line <b>${f1(cut)}</b></span>`);
     c.comps.forEach((comp, ci) => {
-      const s = r.st[ci], gs = $("gs-" + ci);
+      const s = r.st[ci], gs = q(`.gs[data-ci="${ci}"]`);
       if (gs) gs.innerHTML = s.graded ? `<span${r.fails[ci] ? ' class="fail"' : ""}>${f1(s.earned)} / ${f1(s.graded)}${r.fails[ci] ? ` · under ${comp.min}` : ""}</span>` : "—";
       comp.items.forEach((x, ii) => {
         const k = G.key(c.id, ci, ii), has = G.score(S.scores, c.id, ci, ii) !== null;
@@ -311,7 +318,20 @@
     grid.forEach((row, ci) => row.forEach((v, ii) => { if (v !== undefined && v !== null && v !== "") S.scores[G.key(c.id, ci, ii)] = v; }));
   }
   const newCourse = (name, comps, cr) => { const c = { id: uid(), name, cr: cr ?? 3, comps }; S.courses.push(c); sel = c.id; return c; };
-  function select(id) { sel = id; renderSide(); renderCourse(); renderStrip(); $("cv").scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" }); }
+  function markSide() {
+    document.querySelectorAll("#nav .ni").forEach((n) => n.classList.toggle("on", n.dataset.id === sel));
+  }
+  function select(id) {
+    sel = id;
+    markSide();
+    const el = $("c-" + id);
+    if (el) el.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }
+  addEventListener("scroll", () => {
+    let best = null;
+    for (const c of S.courses) { const el = $("c-" + c.id); if (el && el.getBoundingClientRect().top <= innerHeight * 0.35) best = c.id; }
+    if (best && best !== sel) { sel = best; markSide(); }
+  }, { passive: true });
   function addByHand() {
     const c = newCourse("New course", [G.mkComp("Assignments", 30, 4), G.mkComp("Midterm exam", 30, 1), G.mkComp("Final exam", 40, 1)]);
     editing.add(c.id);
@@ -352,7 +372,7 @@
     const t = e.target;
     if (!t.dataset.k) return;
     S.scores[t.dataset.k] = t.value === "" ? null : +t.value;
-    afterScore(cur());
+    afterScore(cof(t));
   });
   $("cv").addEventListener("keydown", (e) => {
     const t = e.target;
@@ -363,7 +383,8 @@
   $("cv").addEventListener("change", (e) => {
     const t = e.target, ed = t.dataset.ed;
     if (!ed) return;
-    const c = cur(), ci = +t.dataset.ci, ii = +t.dataset.ii;
+    const c = cof(t), ci = +t.dataset.ci, ii = +t.dataset.ii;
+    if (!c) return;
     if (ed === "name") c.name = t.value.trim() || "Untitled course";
     else if (ed === "cr") c.cr = t.value === "" ? 3 : Math.max(0, +t.value || 0);
     else if (ed === "cn") c.comps[ci].n = t.value.trim() || "Component";
@@ -372,24 +393,24 @@
     else if (ed === "in") c.comps[ci].items[ii].n = t.value.trim() || "Item";
     else if (ed === "iw") c.comps[ci].items[ii].w = Math.max(0, +t.value || 0);
     renderSide();
-    renderCourse();
+    renderOne(c);
     renderStrip();
     save();
   });
   $("cv").addEventListener("click", (e) => {
-    const c = cur();
+    const c = cof(e.target);
     const g = e.target.closest("[data-goal]");
     if (g && c) { S.goals[c.id] = +g.dataset.goal; refreshCourse(c); renderStrip(); save(); return; }
     const b = e.target.closest("[data-act]");
     if (!b || !c) return;
     const a = b.dataset.act, ci = +b.dataset.ci, ii = +b.dataset.ii;
-    if (a === "toggleEdit") { editing.has(c.id) ? editing.delete(c.id) : editing.add(c.id); confirmDel = null; renderCourse(); return; }
+    if (a === "toggleEdit") { editing.has(c.id) ? editing.delete(c.id) : editing.add(c.id); confirmDel = null; renderOne(c); return; }
     if (a === "addItem") c.comps[ci].items.push({ n: "New item", w: 0 });
     else if (a === "addComp") c.comps.push({ n: "New component", w: 0, items: [{ n: "Item", w: 100 }] });
     else if (a === "rmItem") { const gr = gridOf(c); gr[ci].splice(ii, 1); c.comps[ci].items.splice(ii, 1); putGrid(c, gr); }
     else if (a === "rmComp") { const gr = gridOf(c); gr.splice(ci, 1); c.comps.splice(ci, 1); putGrid(c, gr); }
     else if (a === "delCourse") {
-      if (confirmDel !== c.id) { confirmDel = c.id; renderCourse(); return; }
+      if (confirmDel !== c.id) { confirmDel = c.id; renderOne(c); return; }
       S.courses = S.courses.filter((x) => x !== c);
       for (const k of Object.keys(S.scores)) if (k.startsWith(c.id + "|")) delete S.scores[k];
       delete S.goals[c.id];
@@ -400,7 +421,7 @@
       save();
       return;
     }
-    renderCourse();
+    renderOne(c);
     renderSide();
     renderStrip();
     save();
