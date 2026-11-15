@@ -1,7 +1,8 @@
 # gpa planner
 
 plan the grades you need for the gpa you want. free. private. no account, no server.
-nlive: https://yetolegen.github.io/gpa-planner/
+
+live: https://yetolegen.github.io/gpa-planner/
 
 ## run it
 - double click `start.bat` (needs python). opens http://localhost:8765. everything works, scans too
