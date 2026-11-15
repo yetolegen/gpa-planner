@@ -589,24 +589,48 @@
     if (j && j.exception) throw new Error(j.message || j.errorcode || "Moodle refused");
     return j;
   }
+  async function page(p) {
+    let r;
+    try { r = await fetch(S.sync.site + p, { credentials: "include" }); } catch (e) { throw new Error(window.chrome?.runtime?.id ? "could not reach Moodle" : "the browser blocked the request. Use the extension build (see README)"); }
+    if (/\/login\//.test(r.url) || r.status === 403) throw new Error("you are logged out of Moodle. Open Moodle, log in, then try again");
+    if (!r.ok) throw new Error("Moodle answered " + r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+    if (doc.querySelector("form#login, form[action*='login/index.php']")) throw new Error("you are logged out of Moodle. Open Moodle, log in, then try again");
+    return doc;
+  }
+  function tableRows(doc) {
+    const t = doc.querySelector("table.user-grade,table.generaltable.user-grade,.user-report-container table");
+    if (!t) return null;
+    const o = [], clean = (e) => e.textContent.replace(/\s+/g, " ").trim();
+    t.querySelectorAll("tbody tr").forEach((tr) => {
+      const h = tr.querySelector("th.column-itemname,td.column-itemname,th.gradeitemheader");
+      if (!h) return;
+      const q = (s) => { const e = tr.querySelector(s); return e ? clean(e) : ""; };
+      const c = tr.className + " " + h.className, m = c.match(/level(\d+)/);
+      o.push({ name: clean(h.querySelector(".rowtitle") || h), depth: m ? +m[1] : 0, kind: /categoryitem/.test(c) ? "categoryitem" : /courseitem/.test(c) ? "total" : /category/.test(c) ? "category" : "item", weight: q(".column-weight"), grade: q(".column-grade"), range: q(".column-range"), pct: q(".column-percentage") });
+    });
+    return o;
+  }
   const ensureAccess = async (site) => (window.chrome?.permissions?.request ? chrome.permissions.request({ origins: [new URL(site).origin + "/*"] }) : true);
   const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
   function syncLabel() {
     const e = $("syncSt"), y = S.sync;
-    if (e) e.textContent = !y || !y.token ? "" : syncing ? "syncing" : y.last ? ago(y.last) : "on";
+    if (e) e.textContent = !y || !y.site ? "" : syncing ? "syncing" : y.last ? ago(y.last) : "on";
   }
   const sigOf = (comps) => JSON.stringify(comps.map((c) => [c.n, c.items.map((i) => i.n)]));
   let syncing = false;
   async function syncNow() {
     const y = S.sync;
-    if (!y || !y.token || syncing) return;
+    if (!y || !y.site || syncing) return;
     syncing = true;
     syncLabel();
     const keep = sel, errs = [];
     let items = 0, made = 0;
     for (const mc of (y.courses || []).filter((c) => y.track[c.id])) {
       try {
-        const d = G.parseMoodle(JSON.stringify({ moodle: 1, rows: G.wsRows(await ws("gradereport_user_get_grade_items", { courseid: mc.id, userid: y.userid })) }));
+        const rows = y.token ? G.wsRows(await ws("gradereport_user_get_grade_items", { courseid: mc.id, userid: y.userid })) : tableRows(await page("/grade/report/user/index.php?id=" + mc.id + (y.userid ? "&userid=" + y.userid : "")));
+        if (!rows) throw new Error("no grade table on the page");
+        const d = G.parseMoodle(JSON.stringify({ moodle: 1, rows }));
         if (!d.count) continue;
         const sig = sigOf(d.comps);
         let c = S.courses.find((x) => x.mc === mc.id);
@@ -634,9 +658,10 @@
   function flushSoon() { S.savedAt = Date.now(); clearTimeout(saveT); flush(); }
   function syncHTML() {
     const y = S.sync;
-    if (!y || !y.token) return `<ol class="steps"><li>In Moodle open your profile menu, <b>Preferences</b>, <b>Security keys</b> (or go to <b>your-moodle/user/managetoken.php</b>).</li><li>Copy the key for <b>Moodle mobile web service</b>.</li><li>Paste your Moodle address and the key here.</li></ol>
-      <div class="row2"><label class="fld">Moodle address<input id="syncSite" placeholder="https://lms.your-school.edu" value="${esc(y ? y.site : "")}" autocomplete="off"></label><label class="fld">Security key<input id="syncTok" type="password" autocomplete="off" spellcheck="false"></label></div>
-      <p class="foot" style="margin:0">The key stays in this browser, goes only to the address above, and is left out of backups. It reads grades. It cannot change them. If your school hides the key page, the mobile service is off: use the paste import instead.</p>
+    if (!y || !y.site) return `<ol class="steps"><li>Open your Moodle in this browser and log in, like you do every day.</li><li>Paste the Moodle address below (the page you see after login is fine).</li><li>Click <b>Connect</b>. The extension reads your grades with your own login. No key, no password.</li></ol>
+      <label class="fld">Moodle address<input id="syncSite" placeholder="https://lms.your-school.edu" value="${esc(y ? y.site : "")}" autocomplete="off"></label>
+      <details><summary class="link">I have a Moodle security key</summary><label class="fld" style="margin-top:8px">Security key, optional<input id="syncTok" type="password" autocomplete="off" spellcheck="false"></label></details>
+      <p class="foot" style="margin:0">Needs the extension build (see README). Grades are only read. Nothing leaves your browser except requests to your own Moodle. Sessions expire: if sync says you are logged out, open Moodle once and log in again.</p>
       <div class="actions"><button class="btn primary" data-act="syConnect">Connect</button><span class="foot" id="syMsg" aria-live="polite"></span></div>`;
     return `<p class="meta" style="margin:0">Connected to <b>${esc(y.site)}</b>${y.name ? ` as <b>${esc(y.name)}</b>` : ""}. ${y.last ? "Last sync " + ago(y.last) + "." : "Not synced yet."}</p>
       <div class="clist">${(y.courses || []).map((c) => `<label class="chk"><input type="checkbox" data-mc="${c.id}"${y.track[c.id] ? " checked" : ""}><span>${esc(c.name)}</span></label>`).join("") || '<p class="muted" style="margin:0">No courses found.</p>'}</div>
@@ -648,17 +673,29 @@
   async function syConnect() {
     const m = $("syMsg"), site = siteOf($("syncSite").value), token = $("syncTok").value.trim();
     const say = (t, bad) => { m.textContent = t; m.className = "foot" + (bad ? " fail" : ""); };
-    if (!site || !token) { say("Fill in both fields.", true); return; }
+    if (!site) { say("Type your Moodle address.", true); return; }
     say("Connecting…");
     const prev = S.sync;
     try {
       if (!(await ensureAccess(site))) throw new Error("permission to reach that site was declined");
       S.sync = { site, token, userid: 0, name: "", minutes: 30, track: {}, courses: [], last: 0, msg: "" };
-      const info = await ws("core_webservice_get_site_info");
-      const list = await ws("core_enrol_get_users_courses", { userid: info.userid });
-      S.sync.userid = info.userid;
-      S.sync.name = info.fullname || "";
-      S.sync.courses = (Array.isArray(list) ? list : []).map((c) => ({ id: c.id, name: c.fullname || c.shortname || "Course " + c.id }));
+      if (token) {
+        const info = await ws("core_webservice_get_site_info");
+        const list = await ws("core_enrol_get_users_courses", { userid: info.userid });
+        S.sync.userid = info.userid;
+        S.sync.name = info.fullname || "";
+        S.sync.courses = (Array.isArray(list) ? list : []).map((c) => ({ id: c.id, name: c.fullname || c.shortname || "Course " + c.id }));
+      } else {
+        const doc = await page("/grade/report/overview/index.php");
+        const seen = new Map();
+        doc.querySelectorAll("a[href]").forEach((a) => {
+          const u = new URL(a.getAttribute("href"), S.sync.site + "/"), id = +u.searchParams.get("id");
+          if (id > 1 && /\/(grade\/report\/(user|overview)|course)\//.test(u.pathname) && a.textContent.trim() && !seen.has(id)) seen.set(id, a.textContent.replace(/\s+/g, " ").trim());
+          if (+u.searchParams.get("userid") && !S.sync.userid) S.sync.userid = +u.searchParams.get("userid");
+        });
+        S.sync.courses = [...seen].map(([id, name]) => ({ id, name }));
+        if (!S.sync.courses.length) throw new Error("no courses found on the grades overview page");
+      }
       for (const c of S.sync.courses) S.sync.track[c.id] = true;
       flushSoon();
       $("dlgBody").innerHTML = syncHTML();
@@ -667,7 +704,7 @@
   }
   setInterval(() => {
     const y = S.sync;
-    if (y && y.token && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow();
+    if (y && y.site && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow();
     syncLabel();
   }, 30000);
   const openBackup = () => openDlg("Backup", `<p class="foot" style="margin:0">Data lives in this browser only. Copy or download it. Paste it back to restore. Old artifact backups work too.</p>
@@ -829,5 +866,5 @@
   initStrip();
   renderAll();
   status(S.savedAt ? "Loaded · stays on this device" : "Nothing saved yet · stays on this device");
-  setTimeout(() => { const y = S.sync; if (y && y.token && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow(); }, 1500);
+  setTimeout(() => { const y = S.sync; if (y && y.site && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow(); }, 1500);
 })();

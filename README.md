@@ -23,17 +23,16 @@ plan the grades you need for the gpa you want. free. private. no account, no ser
 **moodle grades, paste**: drag the "Grab Moodle grades" bookmark to your bar, open Grades > User report, click it, paste. or copy the table and paste
 
 ## moodle sync
-grades fill in by themselves every 15 / 30 / 60 min while the app is open.
-1. in moodle: profile menu > Preferences > Security keys. copy the key for "Moodle mobile web service"
-2. in the app: Moodle sync > paste moodle address + key > Connect
-3. tick courses. press Sync now. done
+grades fill in by themselves every 15 / 30 / 60 min while the app is open. no key needed.
+1. load the extension: chrome://extensions > developer mode > Load unpacked > pick this folder. click its icon, app opens
+2. log in to your moodle in the same browser, like normal
+3. in the app: Moodle sync > paste your moodle address > Connect > allow the permission
+4. tick courses. press Sync now
 
-- key stays in this browser, goes only to your moodle address, left out of backups. read only
-- a normal web page cannot read moodle (browser blocks it). run as extension:
-  1. chrome://extensions > developer mode > Load unpacked > pick this folder
-  2. click the extension icon. app opens. first connect asks for permission to your moodle site
-- some schools turn the mobile service off. no key then. use paste import
-- not tested on a real moodle yet. tested on a fake one with the same answer shape
+- how: the extension opens your own grades pages with your own login and reads the tables. no password, no key, read only
+- if sync says logged out: open moodle once, log in, try again
+- have a moodle security key (user/managetoken.php)? there is a field for it under "I have a Moodle security key". optional
+- not tested on a real moodle yet. tested on a fake one. if a theme hides the grade table, use paste import
 
 ## your data
 - saved in your browser (localStorage). Backup copies or downloads it. old artifact backups import fine
