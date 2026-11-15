@@ -8,3 +8,5 @@ Third-party files, unmodified, bundled so nothing loads from the internet.
 | tessdata/ | trained language data: eng, rus, kaz (gzip) | tessdata_fast | Apache-2.0 |
 | pdfjs/ | PDF.js | 3.11.174 | Apache-2.0 |
 | mammoth/ | Word .docx reader | 1.6.0 | BSD-2-Clause |
+
+- font: Inter variable (OFL), bundled in `vendor/inter/`
