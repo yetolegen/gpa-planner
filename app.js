@@ -110,11 +110,13 @@
   const mkStatus = (r, live, n) => (!live ? null : r.final !== null ? ["Done", "t-ok"] : r.goal === null ? ["Out of reach", "t-no"] : n <= 0 ? ["Secured", "t-ok"] : n >= 90 ? ["Tough", "t-hard"] : ["On track", "t-ok"]);
   const needOf = (r) => (r.goal === null ? null : Math.max(0, Math.ceil(r.need(r.goal) - 1e-9)));
 
+  const hue = (n) => [...n].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7);
+  const ini = (n) => n.split(/s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   function renderSide() {
     $("side").innerHTML = `<div class="brand">GPA Planner</div>
       <button class="kbtn" data-go="pal">${ICON.search}<span>Search</span><kbd>Ctrl K</kbd></button>
       <div><div class="sl"><span>Courses</span><span>${S.courses.length}</span></div>
-        <div class="nav" id="nav"><span class="hov" id="hov"></span>${S.courses.map((c) => `<button class="ni${c.id === (cur() && cur().id) ? " on" : ""}" data-id="${c.id}"><i class="dotc" id="nd-${c.id}"></i><span class="nm">${esc(c.name)}</span><span class="nb" id="nb-${c.id}"></span></button>`).join("")}</div>
+        <div class="nav" id="nav"><span class="hov" id="hov"></span>${S.courses.map((c) => `<button class="ni${c.id === (cur() && cur().id) ? " on" : ""}" data-id="${c.id}"><span class="avw"><i class="av" style="--h:${hue(c.name)}">${esc(ini(c.name))}</i><i class="dotc" id="nd-${c.id}"></i></span><span class="nm">${esc(c.name)}</span><span class="nb" id="nb-${c.id}"></span></button>`).join("")}</div>
         <button class="tl" data-go="add">${ICON.plus}Add course</button></div>
       <div><div class="sl">Tools</div><div class="tools">
         <button class="tl" data-go="import">${ICON.up}Import syllabus or grades</button>
