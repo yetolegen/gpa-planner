@@ -895,5 +895,6 @@
   initStrip();
   renderAll();
   status(S.savedAt ? "Loaded · stays on this device" : "Nothing saved yet · stays on this device");
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(() => {});
   setTimeout(() => { const y = S.sync; if (y && y.site && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow(); }, 1500);
 })();
