@@ -8,7 +8,7 @@ plan the grades you need for the gpa you want. free. private. no account, no ser
 - or load as browser extension (below). needed for moodle sync
 
 ## download (windows)
-get **GPA-Planner-Setup-1.1.0.exe** (8 MB) from the [latest release](https://github.com/yetolegen/gpa-planner/releases/latest). run it. done.
+get **GPA-Planner-Setup-1.2.0.exe** (8 MB) from the [latest release](https://github.com/yetolegen/gpa-planner/releases/latest). run it. done.
 
 - installs for your user only, no admin needed
 - a small widget card sits on your desktop, like a weather widget: GPA, CGPA plan, and per course what you need. drag it where you want. it starts with windows

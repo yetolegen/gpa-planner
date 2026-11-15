@@ -355,3 +355,8 @@ body.widget .wg a, body.widget .wg button { -webkit-app-region: no-drag; }
 .wg-bar i.p { background: color-mix(in srgb, var(--ink) 30%, transparent); }
 .wg li { min-height: 40px; }
 body.widget { overflow: hidden; }
+.wg-min { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.wg-min b { font-size: 22px; line-height: 26px; font-weight: 600; }
+.wg-min span { flex: 1; font-size: 11px; color: var(--ink2); }
+.wg-min .link { font-size: 10px; padding: 0; }
+.wg-foot .link { text-decoration: underline; text-underline-offset: 3px; }

@@ -144,7 +144,7 @@ static class App
         string m = e.TryGetWebMessageAsString();
         if (string.IsNullOrEmpty(m)) return;
         string v = m.Substring(1);
-        if (m[0] == 'r') { int h; if (int.TryParse(v, out h)) widget.ClientSize = new Size((int)(300 * scale), (int)(Math.Max(120, Math.Min(720, h)) * scale)); }
+        if (m[0] == 'r') { int h; if (int.TryParse(v, out h)) widget.ClientSize = new Size((int)(300 * scale), (int)(Math.Max(40, Math.Min(720, h)) * scale)); }
         else if (m[0] == 't') { pinned = v == "1"; widget.TopMost = pinned; }
         else if (m[0] == 'd') { ReleaseCapture(); SendMessage(widget.Handle, 0xA1, 2, 0); }
     }

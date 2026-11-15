@@ -899,6 +899,12 @@
     const p = G.cgPlan(cg.terms, T, x.goal ?? 0, tp);
     const plan = p.ci >= 0 && p.L > 0 ? (p.a <= 0 ? "secured" : p.a > tp + 1e-9 ? "out of reach" : "avg " + f2(p.a) + " for " + p.L + " more terms") : "";
     const cgLine = [cgpa === null ? "No terms yet" : "CGPA " + f2(cgpa), "target " + f2(T), plan].filter(Boolean).join(" · ");
+    const col = lsGet("gpa-wg-collapsed") === "1";
+    if (col) {
+      el.innerHTML = `<div class="wg wg-min"><b class="num">${x.goal === null ? "–" : f2(x.goal)}</b><span>Now ${x.now === null ? "–" : f2(x.now)}${cgpa === null ? "" : " · CGPA " + f2(cgpa)}</span><button class="link" data-wg="col">Expand</button></div>`;
+      if (window.gpaDesktop) gpaDesktop.resize(el.firstElementChild.offsetHeight);
+      return;
+    }
     const rows = S.courses.map((c) => {
       const r = G.calcCourse(c, S.scores, S.scale, S.goals), live = c.comps.some((i) => i.items.length), n = needOf(r), st = mkStatus(r, live, n);
       let left = 0;
@@ -908,7 +914,7 @@
       const right = r.final !== null ? "done" : r.goal === null ? "out of reach" : n <= 0 ? "secured" : "need " + n;
       return `<li><i class="dotc ${st ? st[1] : ""}"></i><div class="wg-c"><span class="nm">${esc(c.name)}</span><small>${now}${goal} · ${left} left</small><span class="wg-bar"><i style="width:${Math.min(100, r.earned + r.rest)}%" class="p"></i><i style="width:${Math.min(100, r.earned)}%"></i></span></div><b class="num${n >= 90 && r.final === null ? " hard" : ""}">${right}</b></li>`;
     }).join("");
-    el.innerHTML = `<div class="wg"><div class="wg-top"><div><span class="kl">GPA if you hit your goals</span><b class="wg-big num">${x.goal === null ? "–" : f2(x.goal)}</b></div><div class="wg-r"><span class="kl">Now</span><b class="wg-now num">${x.now === null ? "–" : f2(x.now)}</b><span class="kl">Best ${x.max === null ? "–" : f2(x.max)}</span></div></div><p class="wg-cg">${esc(cgLine)}</p><ul>${rows}</ul><div class="wg-foot"><button class="link" data-wg="pip">Keep on top</button><a href="./" target="_blank">Open app</a></div></div>`;
+    el.innerHTML = `<div class="wg"><div class="wg-top"><div><span class="kl">GPA if you hit your goals</span><b class="wg-big num">${x.goal === null ? "–" : f2(x.goal)}</b></div><div class="wg-r"><span class="kl">Now</span><b class="wg-now num">${x.now === null ? "–" : f2(x.now)}</b><span class="kl">Best ${x.max === null ? "–" : f2(x.max)}</span></div></div><p class="wg-cg">${esc(cgLine)}</p><ul>${rows}</ul><div class="wg-foot"><button class="link" data-wg="pip">Keep on top</button><button class="link" data-wg="col">Collapse</button><a href="./" target="_blank">Open app</a></div></div>`;
     if (window.gpaDesktop) gpaDesktop.resize(el.firstElementChild.offsetHeight);
   }
   async function floatWidget() {
@@ -922,7 +928,7 @@
     document.body.classList.add("widget");
     applyTheme();
     renderWidget();
-    document.addEventListener("click", (e) => { const b = e.target.closest("[data-wg=pip]"); if (!b) return; if (window.gpaDesktop) gpaDesktop.toggleTop().then((on) => { b.textContent = on ? "On top" : "Keep on top"; }); else floatWidget(); });
+    document.addEventListener("click", (e) => { const c = e.target.closest("[data-wg=col]"); if (c) { lsSet("gpa-wg-collapsed", lsGet("gpa-wg-collapsed") === "1" ? "0" : "1"); renderWidget(); return; } const b = e.target.closest("[data-wg=pip]"); if (!b) return; if (window.gpaDesktop) gpaDesktop.toggleTop().then((on) => { b.textContent = on ? "On top" : "Keep on top"; }); else floatWidget(); });
     addEventListener("storage", (e) => { if (e.key === STORE || e.key === THEME_KEY) { S = load(); applyTheme(); renderWidget(); } });
     return;
   }
