@@ -1,0 +1,9 @@
+{
+  "name": "gpa-planner",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Plan the grades you need for the GPA you want. Import syllabi and Moodle grades.",
+  "scripts": {
+    "test": "node --test test/core.test.js"
+  }
+}
