@@ -2,6 +2,8 @@
 
 plan the grades you need for the gpa you want. free. private. no account, no server.
 
+live: https://yetolegen.github.io/gpa-planner/
+
 ## run it
 - double click `start.bat` (needs python). opens http://localhost:8765. everything works, scans too
 - or open `index.html`. works, but scan reading (ocr) needs http, so use start.bat for that
@@ -27,6 +29,8 @@ the installer lands in `win/dist`.
 - goal grade per course. bar shows secured points, points still possible, goal line
 - gpa if you hit goals, best possible, now, if you improve
 - cgpa planner: target, terms per year, retakes, what each term must average
+- trimesters: each one has its own courses. finish trimester locks gpa, opens next. reopen to fix
+- recredit: edit course, set total grade % by hand
 - any grading scale: us 4.0, plain a-f, kazakhstan / aitu, or your own table
 - `Ctrl K` command search. auto / light / dark
 - all local. nothing leaves your device
