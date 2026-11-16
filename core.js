@@ -60,6 +60,7 @@
     const st = course.comps.map((c, i) => compStats(course, i, scores));
     let earned = 0, rest = 0;
     st.forEach((s, i) => { earned += w[i] * s.earned; rest += w[i] * s.rest; });
+    if (course.over !== undefined && course.over !== null && course.over !== "") { earned = Math.min(100, Math.max(0, +course.over || 0)); rest = 0; }
     earned = r6(earned);
     rest = r6(rest);
     const graded = r6(100 - rest);

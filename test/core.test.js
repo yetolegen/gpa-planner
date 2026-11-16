@@ -76,3 +76,10 @@ test("old backup migrates; term plan", () => {
   assert.strictEqual(p.a, 3.5);
   assert.ok(p.pass);
 });
+
+test("hand-set total overrides course grade", () => {
+  const c = { id: "x", cr: 3, over: 85, comps: [G.mkComp("Final", 100, 1)] };
+  const r = G.calcCourse(c, {}, G.PRESETS.us, {});
+  assert.strictEqual(r.final, 85);
+  assert.strictEqual(G.summarize([c], {}, G.PRESETS.us, {}, 0).now, 3);
+});

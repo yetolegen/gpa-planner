@@ -62,23 +62,28 @@
     for (let s = stdCount(cg); s < n; s++) cg.terms.splice(s, 0, { g: null, r: false });
     for (let i = cg.terms.length - 1; i >= 0 && stdCount(cg) > n; i--) if (!cg.terms[i].r && cg.terms[i].g === null) cg.terms.splice(i, 1);
   }
-  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, sync: null, savedAt: 0 });
+  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, tp: {}, ti: 0, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, sync: null, savedAt: 0 });
   function norm(s) {
     const b = fresh();
     const o = { ...b, ...s, cg: { ...b.cg, ...(s.cg || {}) } };
     o.scale = G.normScale(o.scale || b.scale);
-    o.courses = (o.courses || []).map((c) => ({
+    const nc = (cs) => (cs || []).map((c) => ({
       id: c.id || uid(), name: c.name || "Course", cr: c.cr ?? 3, mc: c.mc, sig: c.sig,
+      over: c.over === undefined || c.over === null || c.over === "" ? undefined : Math.min(100, Math.max(0, +c.over || 0)),
       comps: (c.comps || []).map((x) => ({ n: x.n, w: +x.w || 0, min: x.min, items: (x.items || []).map((i) => ({ n: i.n, w: +i.w || 0 })) })),
     }));
+    o.courses = nc(o.courses);
+    o.tp = {};
+    for (const [k, d] of Object.entries(s.tp || {})) if (d && Array.isArray(d.courses)) o.tp[k] = { courses: nc(d.courses), scores: d.scores || {}, goals: d.goals || {} };
     o.scores = o.scores || {};
     o.goals = o.goals || {};
     const y = o.sync;
     o.sync = y && typeof y === "object" ? { site: y.site || "", token: y.token || "", userid: y.userid, name: y.name || "", minutes: [0, 15, 30, 60].includes(+y.minutes) ? +y.minutes : 30, track: y.track || {}, courses: y.courses || [], last: +y.last || 0, msg: y.msg || "" } : null;
     o.cg.perYear = Math.max(1, +o.cg.perYear || 2);
     o.cg.years = Math.max(1, +o.cg.years || 4);
-    o.cg.terms = (o.cg.terms || []).map((t) => ({ g: t.g === null || t.g === undefined || t.g === "" ? null : +t.g, r: !!t.r }));
+    o.cg.terms = (o.cg.terms || []).map((t) => ({ g: t.g === null || t.g === undefined || t.g === "" ? null : +t.g, r: !!t.r, done: !!t.done }));
     fixTerms(o.cg);
+    o.ti = Number.isInteger(s.ti) && s.ti >= 0 && s.ti < o.cg.terms.length ? s.ti : Math.max(0, o.cg.terms.findIndex((t) => t.g === null && !t.r));
     return o;
   }
   function load() {
@@ -161,8 +166,47 @@
     roll($("vNow"), x.now);
     roll($("vImp"), x.imp);
     $("boost").value = S.cg.boost;
-    refreshCg(S.courses.length ? x.goal : null);
+    const tm = S.cg.terms[S.ti];
+    if (tm && tm.done && x.now !== null) {
+      tm.g = G.round2(Math.min(top(), x.now));
+      const inp = document.querySelector(`[data-term="${S.ti}"]`);
+      if (inp) inp.value = tm.g;
+    }
+    const oi = S.cg.terms.findIndex((t) => t.g === null && !t.r), d = S.tp[oi];
+    refreshCg(oi === S.ti ? (S.courses.length ? x.goal : null) : d && d.courses.length ? G.summarize(d.courses, d.scores, S.scale, d.goals, S.cg.boost).goal : null);
   }
+  function renderTbar() {
+    const cg = S.cg;
+    S.ti = Math.min(S.ti, cg.terms.length - 1);
+    const t = cg.terms[S.ti];
+    $("tbar").innerHTML = `<label class="kl" for="tsel">Trimester</label><select id="tsel">${cg.terms.map((q, k) => `<option value="${k}"${k === S.ti ? " selected" : ""}>${termName(k)} · ${termYear(k)}${q.g !== null ? " · " + f2(q.g) : ""}${q.done ? " ✓" : ""}</option>`).join("")}</select>${t.done ? '<span class="tg t-ok">Finished</span><button class="link" data-tm="reopen">Reopen</button>' : `<button class="btn" data-tm="finish"${S.courses.length ? "" : " disabled"}>Finish trimester</button>`}`;
+  }
+  function gotoTerm(i) {
+    if (S.courses.length) S.tp[S.ti] = { courses: S.courses, scores: S.scores, goals: S.goals }; else delete S.tp[S.ti];
+    const d = S.tp[i] || { courses: [], scores: {}, goals: {} };
+    delete S.tp[i];
+    S.courses = d.courses; S.scores = d.scores; S.goals = d.goals;
+    S.ti = i; sel = null; editing.clear(); confirmDel = null;
+    renderAll();
+    save();
+  }
+  function finishTerm() {
+    const x = G.summarize(S.courses, S.scores, S.scale, S.goals, 0);
+    if (x.now === null) return;
+    const t = S.cg.terms[S.ti];
+    t.g = G.round2(Math.min(top(), x.now));
+    t.done = true;
+    const nxt = () => S.cg.terms.findIndex((q, k) => k > S.ti && !q.r && q.g === null);
+    if (nxt() < 0) { S.cg.years++; fixTerms(S.cg); }
+    gotoTerm(nxt() < 0 ? S.ti : nxt());
+  }
+  document.addEventListener("change", (e) => { if (e.target.id === "tsel") gotoTerm(+e.target.value); });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tm]");
+    if (!b) return;
+    if (b.dataset.tm === "finish") finishTerm();
+    else { S.cg.terms[S.ti].done = false; renderTbar(); renderStrip(); save(); }
+  });
   function renderLegend() {
     $("legend").innerHTML = `<span>Scale: <b>${esc(S.scale.name)}</b>${S.scale.round ? ", totals round to whole first" : ""}</span><button class="link" data-go="scale">Change</button>`;
   }
@@ -178,7 +222,8 @@
   function editorHTML(c) {
     return `<div class="ed"><div class="edtop">
       <label for="ed-name">Course name<input id="ed-name" data-ed="name" value="${esc(c.name)}"></label>
-      <label for="ed-cr">Credits<input id="ed-cr" data-ed="cr" type="number" min="0" step="any" inputmode="decimal" value="${c.cr ?? 3}"></label></div>
+      <label for="ed-cr">Credits<input id="ed-cr" data-ed="cr" type="number" min="0" step="any" inputmode="decimal" value="${c.cr ?? 3}"></label>
+      <label for="ed-over">Total grade % (recredit)<input id="ed-over" data-ed="over" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="auto" value="${c.over ?? ""}"></label></div>
       <div class="edcomps">${c.comps.map((comp, ci) => `<div class="edgrp"><div class="edhead">
         <label>Component<input data-ed="cn" data-ci="${ci}" value="${esc(comp.n)}"></label>
         <label>Weight %<input data-ed="cw" data-ci="${ci}" type="number" min="0" step="any" value="${comp.w}"></label>
@@ -222,7 +267,7 @@
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
     const live = c.comps.some((x) => x.items.length);
     const n = needOf(r), st = mkStatus(r, live, n);
-    q(".cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : ""].filter(Boolean).join(" · ");
+    q(".cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : "", c.over !== undefined ? "Total set by hand" : ""].filter(Boolean).join(" · ");
     const g = q(".cvGoal"), pills = q(".cvPills");
     if (!live) { g.innerHTML = '<span class="sub">Add grading components to see the score you need.</span>'; pills.innerHTML = ""; }
     else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `<span class="big">${esc(b[1])}</span><span class="sub">Course done: ${show(r.final)}% · GPA ${f2(b[2])}</span>`; pills.innerHTML = ""; }
@@ -306,6 +351,7 @@
   function renderAll() {
     if (!S.courses.find((c) => c.id === sel)) sel = S.courses[0] ? S.courses[0].id : null;
     renderSide();
+    renderTbar();
     renderLegend();
     renderCourse();
     cgSkeleton();
@@ -387,6 +433,7 @@
     if (!c) return;
     if (ed === "name") c.name = t.value.trim() || "Untitled course";
     else if (ed === "cr") c.cr = t.value === "" ? 3 : Math.max(0, +t.value || 0);
+    else if (ed === "over") { if (t.value === "") delete c.over; else c.over = Math.min(100, Math.max(0, +t.value || 0)); }
     else if (ed === "cn") c.comps[ci].n = t.value.trim() || "Component";
     else if (ed === "cw") c.comps[ci].w = Math.max(0, +t.value || 0);
     else if (ed === "cm") { if (t.value === "") delete c.comps[ci].min; else c.comps[ci].min = Math.min(100, Math.max(0, +t.value || 0)); }
@@ -430,7 +477,7 @@
   $("cg").addEventListener("input", (e) => {
     const t = e.target;
     if (t.id === "cgTarget") S.cg.target = Math.min(top(), Math.max(0, +t.value || 0));
-    else if (t.dataset.term !== undefined) S.cg.terms[+t.dataset.term].g = t.value === "" ? null : Math.min(top(), Math.max(0, +t.value));
+    else if (t.dataset.term !== undefined) { const q = S.cg.terms[+t.dataset.term]; q.g = t.value === "" ? null : Math.min(top(), Math.max(0, +t.value)); if (q.done) { q.done = false; renderTbar(); } }
     else return;
     renderStrip();
     save();
@@ -439,7 +486,16 @@
   $("cg").addEventListener("click", (e) => {
     const t = e.target;
     const rm = t.closest("[data-rm]");
-    if (rm) { S.cg.terms.splice(+rm.dataset.rm, 1); cgSkeleton(); renderStrip(); save(); return; }
+    if (rm) {
+      const k = +rm.dataset.rm;
+      if (k === S.ti || (S.tp[k] && S.tp[k].courses.length)) return;
+      S.cg.terms.splice(k, 1);
+      const n = {};
+      for (const [a, v] of Object.entries(S.tp)) n[+a > k ? +a - 1 : a] = v;
+      S.tp = n;
+      if (S.ti > k) S.ti--;
+      renderTbar();
+      cgSkeleton(); renderStrip(); save(); return; }
     if (t.closest("[data-cg=more]")) { cgAll = !cgAll; cgSkeleton(); renderStrip(); return; }
     if (t.closest("[data-cg=retake]")) { S.cg.terms.push({ g: null, r: true }); cgSkeleton(); renderStrip(); save(); return; }
     const yr = t.closest("[data-years]");
@@ -792,7 +848,7 @@
     }
     else if (a === "sRm") { sd.rows.splice(i, 1); $("dlgBody").innerHTML = scaleHTML(sd); }
     else if (a === "sAdd") { sd.rows.splice(Math.max(0, sd.rows.length - 1), 0, [0, "?", 0]); $("dlgBody").innerHTML = scaleHTML(sd); }
-    else if (a === "sSave") { S.scale = G.normScale(sd); S.goals = {}; for (const t2 of S.cg.terms) if (t2.g !== null) t2.g = Math.min(t2.g, top()); dlg.close(); renderAll(); save(); }
+    else if (a === "sSave") { S.scale = G.normScale(sd); S.goals = {}; for (const d of Object.values(S.tp)) d.goals = {}; for (const t2 of S.cg.terms) if (t2.g !== null) t2.g = Math.min(t2.g, top()); dlg.close(); renderAll(); save(); }
     else if (a === "bkCopy") { navigator.clipboard?.writeText(backupText()).then(() => { $("bkMsg").textContent = "copied"; }, () => { $("bkMsg").textContent = "copy failed here"; }); }
     else if (a === "bkDownload") {
       const url = URL.createObjectURL(new Blob([backupText()], { type: "application/json" }));
