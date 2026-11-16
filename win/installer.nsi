@@ -1,5 +1,5 @@
 Unicode true
-!define VER "1.2.0"
+!define VER "1.3.0"
 Name "GPA Planner"
 OutFile "dist\GPA-Planner-Setup-${VER}.exe"
 InstallDir "$LOCALAPPDATA\Programs\GPA Planner"
