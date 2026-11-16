@@ -249,8 +249,12 @@
       <div class="meter"><div class="bar2"><i class="mf pos mfP"></i><i class="mf sec mfS"></i><i class="mk2 cvMk" hidden></i></div><div class="mleg cvLeg"></div></div>
       <div class="groups">${rows}</div></article>`;
   }
+  let inT = 0;
   function renderCourse() {
     if (!S.courses.length) { $("cv").innerHTML = emptyHTML(); return; }
+    $("cv").classList.add("in");
+    clearTimeout(inT);
+    inT = setTimeout(() => $("cv").classList.remove("in"), 800);
     $("cv").innerHTML = S.courses.map(courseHTML).join("");
     S.courses.forEach(refreshCourse);
   }

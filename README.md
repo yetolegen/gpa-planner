@@ -9,7 +9,7 @@ live: https://yetolegen.github.io/gpa-planner/
 - or open `index.html`. works, but scan reading (ocr) needs http, so use start.bat for that
 
 ## download (windows)
-get **GPA-Planner-Setup-1.3.0.exe** (8 MB) from the [latest release](https://github.com/yetolegen/gpa-planner/releases/latest). run it. done.
+get **GPA-Planner-Setup-1.3.1.exe** (8 MB) from the [latest release](https://github.com/yetolegen/gpa-planner/releases/latest). run it. done.
 
 - installs for your user only, no admin needed
 - a small widget card sits on your desktop, like a weather widget: GPA, CGPA plan, and per course what you need. drag it where you want. it starts with windows

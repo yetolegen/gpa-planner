@@ -139,12 +139,37 @@ static class App
         c.Navigate(url);
     }
 
+    static System.Windows.Forms.Timer anim;
+    static int fromH, toH;
+    static DateTime t0;
+
+    static void Slide(int h)
+    {
+        int w = (int)(300 * scale);
+        if (!widget.Visible) { widget.ClientSize = new Size(w, h); return; }
+        fromH = widget.ClientSize.Height;
+        toH = h;
+        t0 = DateTime.Now;
+        if (anim == null)
+        {
+            anim = new System.Windows.Forms.Timer { Interval = 12 };
+            anim.Tick += delegate
+            {
+                double k = Math.Min(1, (DateTime.Now - t0).TotalMilliseconds / 240);
+                double e = 1 - Math.Pow(1 - k, 3);
+                widget.ClientSize = new Size((int)(300 * scale), fromH + (int)((toH - fromH) * e));
+                if (k >= 1) anim.Stop();
+            };
+        }
+        anim.Start();
+    }
+
     static void OnMsg(object s, CoreWebView2WebMessageReceivedEventArgs e)
     {
         string m = e.TryGetWebMessageAsString();
         if (string.IsNullOrEmpty(m)) return;
         string v = m.Substring(1);
-        if (m[0] == 'r') { int h; if (int.TryParse(v, out h)) widget.ClientSize = new Size((int)(300 * scale), (int)(Math.Max(40, Math.Min(720, h)) * scale)); }
+        if (m[0] == 'r') { int h; if (int.TryParse(v, out h)) Slide((int)(Math.Max(40, Math.Min(720, h)) * scale)); }
         else if (m[0] == 't') { pinned = v == "1"; widget.TopMost = pinned; }
         else if (m[0] == 'd') { ReleaseCapture(); SendMessage(widget.Handle, 0xA1, 2, 0); }
     }

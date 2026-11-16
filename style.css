@@ -364,3 +364,16 @@ body.widget { overflow: hidden; }
 .tbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; }
 .tbar select { height: 28px; padding: 0 8px; border: 1px solid var(--rule); background: transparent; color: var(--ink); font: inherit; font-size: 13px; border-radius: 0; }
 select, option { background: var(--bg); color: var(--ink); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes tick { 50% { transform: scale(1.5); } }
+#cv.in .ch { animation: rise .35s var(--ease) both; }
+#cv.in .ch:nth-child(2) { animation-delay: .05s; } #cv.in .ch:nth-child(3) { animation-delay: .1s; } #cv.in .ch:nth-child(n+4) { animation-delay: .15s; }
+#cv.in .r2 { animation: fadein .4s var(--ease) both; }
+#cv.in .r2:nth-child(2) { animation-delay: .06s; } #cv.in .r2:nth-child(3) { animation-delay: .1s; } #cv.in .r2:nth-child(4) { animation-delay: .14s; } #cv.in .r2:nth-child(n+5) { animation-delay: .18s; }
+.dt0 { transition: background-color .25s var(--ease), transform .25s var(--ease); }
+.dt0.on { animation: tick .3s var(--ease); }
+.r2 input { transition: box-shadow .15s var(--ease), background-color .15s var(--ease); }
+.hint { transition: color .2s var(--ease); }
+.tg { transition: color .25s var(--ease), background-color .25s var(--ease); }
+.nav .nb, .kv { transition: opacity .2s var(--ease); }
