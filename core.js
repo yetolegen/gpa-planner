@@ -201,100 +201,6 @@
     };
   }
 
-  const toNum = (s) => {
-    if (s === undefined || s === null) return null;
-    const m = String(s).replace(/\s/g, "").replace(",", ".").match(/^-?\d+(?:\.\d+)?/);
-    return m ? +m[0] : null;
-  };
-  function textRows(text) {
-    const rows = [];
-    for (const raw of text.split(/\r?\n/)) {
-      const cells = raw.split(/\t| {2,}/).map((c) => c.trim());
-      if (cells.length < 3 || !cells[0] || /^grade item$/i.test(cells[0])) continue;
-      const rest = cells.slice(1).filter(Boolean);
-      const pcts = rest.filter((c) => /%\s*$/.test(c));
-      const range = rest.find((c) => /^-?\d+(?:[.,]\d+)?\s*[–-]\s*\d+/.test(c));
-      const gradeCell = rest.find((c) => c !== range && /^-?\d+(?:[.,]\d+)?$/.test(c));
-      let weight = null, pct = null;
-      if (pcts.length >= 2) { weight = pcts[0]; pct = pcts[1]; }
-      else if (pcts.length === 1) { if (gradeCell !== undefined) pct = pcts[0]; else weight = pcts[0]; }
-      rows.push({ name: cells[0].replace(/^[\s\u00a0]+/, ""), depth: 0, kind: "item", weight, grade: gradeCell ?? "", range: range ?? "", pct: pct ?? "" });
-    }
-    return rows;
-  }
-  function parseMoodle(input) {
-    let rows = null;
-    try { const j = JSON.parse(input); if (j && j.moodle && Array.isArray(j.rows)) rows = j.rows; } catch (e) { rows = null; }
-    if (!rows) rows = textRows(input);
-    const norm = rows.map((r) => {
-      const grade = toNum(r.grade), rangeM = String(r.range || "").match(/(-?\d+(?:[.,]\d+)?)\s*[–-]\s*(-?\d+(?:[.,]\d+)?)/);
-      const max = rangeM ? toNum(rangeM[2]) : null;
-      let pct = toNum(r.pct);
-      if (pct === null && grade !== null && max) pct = (grade / max) * 100;
-      let kind = r.kind || "item";
-      if (/^course total$/i.test(r.name)) kind = "total";
-      else if (/\btotal$/i.test(r.name) && kind === "item") kind = "categoryitem";
-      return { name: r.name, depth: +r.depth || 0, kind, weight: toNum(r.weight), pct: pct === null ? null : Math.min(100, Math.max(0, pct)) };
-    });
-    const comps = [], scores = {};
-    let cat = null;
-    for (const r of norm) {
-      if (r.kind === "total") continue;
-      if (r.kind === "categoryitem") {
-        if (cat && r.weight !== null && !cat.w) cat.w = r.weight;
-        cat = null;
-        continue;
-      }
-      if (r.kind === "category") { cat = { n: r.name, w: r.weight || 0, items: [], depth: r.depth }; comps.push(cat); continue; }
-      if (cat && r.depth > cat.depth) {
-        cat.items.push({ n: r.name, w: r.weight || 0 });
-        if (r.pct !== null) scores[`${comps.length - 1}|${cat.items.length - 1}`] = r.pct;
-        continue;
-      }
-      cat = null;
-      comps.push({ n: r.name, w: r.weight || 0, items: [{ n: r.name, w: 100 }] });
-      if (r.pct !== null) scores[`${comps.length - 1}|0`] = r.pct;
-    }
-    comps.forEach((c) => {
-      if (c.items.length > 1 || (c.items.length === 1 && c.items[0].w !== 100)) {
-        const t = c.items.reduce((a, x) => a + x.w, 0);
-        if (!c.w) c.w = round2(t);
-        if (!t) c.items.forEach((x) => (x.w = 100));
-      }
-      delete c.depth;
-    });
-    const known = comps.reduce((a, c) => a + (c.w || 0), 0);
-    if (known === 0 && comps.length) comps.forEach((c) => (c.w = round2(100 / comps.length)));
-    return { name: "Moodle course", cr: 3, comps, scores, count: norm.filter((r) => r.kind === "item" || r.kind === "category").length };
-  }
-
-  const tokens = (s) => s.toLowerCase().replace(/[^a-z0-9\u0400-\u04ff ]+/g, " ").split(/\s+/).filter(Boolean);
-  function similarity(a, b) {
-    const A = tokens(a), B = tokens(b);
-    if (!A.length || !B.length) return 0;
-    if (A.join(" ") === B.join(" ")) return 1;
-    return A.filter((t) => B.includes(t)).length / Math.max(A.length, B.length);
-  }
-  function fillScores(course, scores, draft) {
-    let filled = 0;
-    const unmatched = [], taken = new Set();
-    draft.comps.forEach((dc, dci) => {
-      dc.items.forEach((di, dii) => {
-        const v = draft.scores[`${dci}|${dii}`];
-        if (v === undefined) return;
-        let best = null, bs = 0;
-        course.comps.forEach((c, ci) => c.items.forEach((x, ii) => {
-          if (taken.has(`${ci}|${ii}`)) return;
-          const s = Math.max(similarity(di.n, x.n), similarity(di.n, `${c.n} ${x.n}`) * 0.9, c.items.length === 1 ? similarity(di.n, c.n) : 0);
-          if (s > bs) { bs = s; best = [ci, ii]; }
-        }));
-        if (best && bs >= 0.5) { scores[key(course.id, best[0], best[1])] = v; taken.add(best.join("|")); filled++; }
-        else unmatched.push(di.n);
-      });
-    });
-    return { filled, unmatched };
-  }
-
   function migrateV1(s) {
     const W = { mid: 30, end: 30, fin: 40, ...(s.W || {}) };
     const scores = {}, old = s.scores || {};
@@ -323,41 +229,8 @@
     };
   }
 
-  function wsRows(json) {
-    const g = json && json.usergrades && json.usergrades[0];
-    if (!g) return [];
-    const items = g.gradeitems || [];
-    const root = items.find((i) => i.itemtype === "course");
-    const rootCat = root ? root.iteminstance : null;
-    const row = (i, kind, depth, name) => ({
-      name: name || i.itemname || "Item", depth, kind,
-      weight: i.weightformatted || (i.weightraw !== null && i.weightraw !== undefined ? `${i.weightraw} %` : ""),
-      grade: i.gradeformatted !== undefined && i.gradeformatted !== null ? String(i.gradeformatted) : i.graderaw !== null && i.graderaw !== undefined ? String(i.graderaw) : "",
-      range: i.rangeformatted || `${i.grademin ?? 0}–${i.grademax ?? 100}`,
-      pct: i.percentageformatted || "",
-    });
-    const leaf = (i) => i.itemtype === "mod" || i.itemtype === "manual";
-    const rows = [];
-    for (const i of items) {
-      if (leaf(i) && (i.categoryid === rootCat || rootCat === null || i.categoryid === undefined)) rows.push(row(i, "item", 1));
-      else if (i.itemtype === "category" && i.iteminstance !== rootCat) {
-        rows.push(row(i, "category", 1, (i.itemname || "Category " + i.iteminstance).replace(/\s*total$/i, "")));
-        for (const k of items) if (leaf(k) && k.categoryid === i.iteminstance) rows.push(row(k, "item", 2));
-      }
-    }
-    return rows;
-  }
 
-  function moodleReportUrl(input) {
-    let u;
-    try { u = new URL(String(input || "").trim()); } catch (e) { return null; }
-    const id = u.searchParams.get("id") || u.searchParams.get("courseid");
-    if (!id || !/^\d+$/.test(id)) return null;
-    const base = u.pathname.replace(/\/(grade|course|my|mod|user|report)\/.*$/, "").replace(/\/$/, "");
-    return `${u.origin}${base}/grade/report/user/index.php?id=${id}`;
-  }
-
-  const api = { wsRows, moodleReportUrl, PRESETS, normScale, maxPts, rd, band, cutoff, key, score, calcCourse, summarize, cgPlan, parseSyllabus, parseMoodle, fillScores, migrateV1, candidates, parseScale, similarity, round2, mkComp };
+  const api = { PRESETS, normScale, maxPts, rd, band, cutoff, key, score, calcCourse, summarize, cgPlan, parseSyllabus, migrateV1, candidates, parseScale, round2, mkComp };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.GPA = api;
 })(typeof self !== "undefined" ? self : this);

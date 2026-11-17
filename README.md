@@ -39,8 +39,6 @@ the installer lands in `win/dist`.
 **syllabus**: pdf, word, text, or a photo/scan (png jpg webp). finds the grading table and the letter scale. you check the draft before the course is made
 - scans and photos: text read on your device with bundled tesseract. pick the language (english, russian, kazakh)
 
-**moodle grades, paste**: drag the "Grab Moodle grades" bookmark to your bar, open Grades > User report, click it, paste. or copy the table and paste
-
 ## your data
 - saved in your browser (localStorage). Backup copies or downloads it. old artifact backups import fine
 

@@ -9,7 +9,6 @@
   const hm = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const STORE = "gpa-planner-v2", THEME_KEY = "gpa-theme", LANG_KEY = "gpa-ocr-lang";
-  const BOOKMARKLET = "javascript:(function(){var t=document.querySelector('table.user-grade,table.generaltable.user-grade,.user-report-container table');if(!t){alert('Open Moodle > Grades > User report first, then click this bookmark again.');return}var o=[];t.querySelectorAll('tbody tr').forEach(function(tr){var h=tr.querySelector('th.column-itemname,td.column-itemname,th.gradeitemheader');if(!h)return;var q=function(s){var e=tr.querySelector(s);return e?e.textContent.replace(/\\s+/g,' ').trim():''};var c=tr.className+' '+h.className;var m=c.match(/level(\\d+)/);var n=(h.querySelector('.rowtitle')||h).textContent.replace(/\\s+/g,' ').trim();o.push({name:n,depth:m?+m[1]:0,kind:/categoryitem/.test(c)?'categoryitem':/courseitem/.test(c)?'total':/category/.test(c)?'category':'item',weight:q('.column-weight'),grade:q('.column-grade'),range:q('.column-range'),pct:q('.column-percentage')})});var j=JSON.stringify({moodle:1,rows:o});(navigator.clipboard?navigator.clipboard.writeText(j):Promise.reject()).then(function(){alert('Copied '+o.length+' grade rows. Paste them into GPA Planner.')},function(){prompt('Copy this text:',j)})})()";
   const svg = (d) => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const ICON = {
     plus: svg('<path d="M8 3v10M3 8h10"/>'),
@@ -17,7 +16,6 @@
     down: svg('<path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"/>'),
     sliders: svg('<path d="M2 5h7m3 0h2M2 11h2m3 0h7"/><circle cx="10.5" cy="5" r="1.5"/><circle cx="5.5" cy="11" r="1.5"/>'),
     search: svg('<circle cx="7" cy="7" r="4"/><path d="M10 10l3 3"/>'),
-    sync: svg('<path d="M13 8a5 5 0 0 0-9-3M3 2v3h3M3 8a5 5 0 0 0 9 3M13 14v-3h-3"/>'),
   };
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
@@ -62,7 +60,7 @@
     for (let s = stdCount(cg); s < n; s++) cg.terms.splice(s, 0, { g: null, r: false });
     for (let i = cg.terms.length - 1; i >= 0 && stdCount(cg) > n; i--) if (!cg.terms[i].r && cg.terms[i].g === null) cg.terms.splice(i, 1);
   }
-  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, tp: {}, ti: 0, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, sync: null, savedAt: 0 });
+  const fresh = () => ({ scale: G.PRESETS.us, courses: [], scores: {}, goals: {}, tp: {}, ti: 0, cg: { terms: [], target: 3.5, boost: 5, perYear: 2, years: 4 }, savedAt: 0 });
   function norm(s) {
     const b = fresh();
     const o = { ...b, ...s, cg: { ...b.cg, ...(s.cg || {}) } };
@@ -77,8 +75,7 @@
     for (const [k, d] of Object.entries(s.tp || {})) if (d && Array.isArray(d.courses)) o.tp[k] = { courses: nc(d.courses), scores: d.scores || {}, goals: d.goals || {} };
     o.scores = o.scores || {};
     o.goals = o.goals || {};
-    const y = o.sync;
-    o.sync = y && typeof y === "object" ? { site: y.site || "", token: y.token || "", userid: y.userid, name: y.name || "", minutes: [0, 15, 30, 60].includes(+y.minutes) ? +y.minutes : 30, track: y.track || {}, courses: y.courses || [], last: +y.last || 0, msg: y.msg || "" } : null;
+    delete o.sync;
     o.cg.perYear = Math.max(1, +o.cg.perYear || 2);
     o.cg.years = Math.max(1, +o.cg.years || 4);
     o.cg.terms = (o.cg.terms || []).map((t) => ({ g: t.g === null || t.g === undefined || t.g === "" ? null : +t.g, r: !!t.r, done: !!t.done }));
@@ -126,11 +123,9 @@
         <button class="tl" data-go="add">${ICON.plus}Add course</button></div>
       <div><div class="sl">Tools</div><div class="tools">
         <button class="tl" data-go="import">${ICON.up}Import syllabus or grades</button>
-        <button class="tl" data-go="sync">${ICON.sync}<span class="nm">Moodle sync</span><span class="nb" id="syncSt"></span></button>
         <button class="tl" data-go="scale">${ICON.sliders}Grading scale</button>
         <button class="tl" data-go="backup">${ICON.down}Backup</button></div></div>
       <div class="sidefoot"><div class="thm seg" id="thm">${["auto", "light", "dark"].map((t) => `<button data-theme="${t}" class="${getTheme() === t ? "on" : ""}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div><span class="saved" id="saved"></span></div>`;
-    syncLabel();
     glide($("thm"), "thm");
     const nav = $("nav"), hov = $("hov");
     nav.addEventListener("mouseover", (e) => {
@@ -216,7 +211,7 @@
     return ((t > 0 ? (+items[ii].w || 0) / t : 1 / items.length) * r.w[ci]) * 100;
   }
   const emptyHTML = () => `<div class="empty"><h3>No courses yet</h3><p class="muted" style="margin:0;max-width:56ch">Type grades as they land. See the score you need on everything left.</p>
-    <button class="opt" data-go="import">${ICON.up}<div><b>Import syllabus or Moodle grades</b><span>PDF, Word, text, or paste a Moodle table</span></div></button>
+    <button class="opt" data-go="import">${ICON.up}<div><b>Import syllabus</b><span>PDF, Word, text, or a photo</span></div></button>
     <button class="opt" data-go="add">${ICON.plus}<div><b>Add a course by hand</b><span>Pick components and weights yourself</span></div></button>
     <button class="opt" data-go="example">${ICON.plus}<div><b>Try example courses</b><span>See how it works</span></div></button></div>`;
   function editorHTML(c) {
@@ -271,7 +266,7 @@
     const r = G.calcCourse(c, S.scores, S.scale, S.goals);
     const live = c.comps.some((x) => x.items.length);
     const n = needOf(r), st = mkStatus(r, live, n);
-    q(".cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.mc ? "Synced from Moodle" : "", c.over !== undefined ? "Total set by hand" : ""].filter(Boolean).join(" · ");
+    q(".cvMeta").innerHTML = [`${c.cr ?? 3} credits`, st ? `<span class="tg ${st[1]}">${st[0]}</span>` : "", r.final !== null ? `Final <b>${show(r.final)}%</b> ${esc(bandOf(r.final)[1])}` : r.pace !== null ? `Now <b>${show(r.pace)}%</b> ${esc(bandOf(r.pace)[1])}` : "", c.over !== undefined ? "Total set by hand" : ""].filter(Boolean).join(" · ");
     const g = q(".cvGoal"), pills = q(".cvPills");
     if (!live) { g.innerHTML = '<span class="sub">Add grading components to see the score you need.</span>'; pills.innerHTML = ""; }
     else if (r.final !== null) { const b = bandOf(r.final); g.innerHTML = `<span class="big">${esc(b[1])}</span><span class="sub">Course done: ${show(r.final)}% · GPA ${f2(b[2])}</span>`; pills.innerHTML = ""; }
@@ -414,7 +409,6 @@
     const go = e.target.closest("[data-go]")?.dataset.go;
     if (!go) return;
     if (go === "pal") openPal(); else if (go === "add") addByHand(); else if (go === "import") openImport();
-    else if (go === "sync") openSync();
     else if (go === "scale") openScale(); else if (go === "backup") openBackup(); else if (go === "example") loadExample();
   });
   $("strip").addEventListener("change", (e) => { if (e.target.id === "boost") { S.cg.boost = +e.target.value; renderStrip(); save(); } });
@@ -523,7 +517,7 @@
   $("dlgX").addEventListener("click", () => dlg.close());
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 
-  let sy = null, mo = null, tab = "syllabus", tickT = 0;
+  let sy = null, tickT = 0;
   const sumComps = (d) => G.round2(d.comps.reduce((a, c) => a + (+c.w || 0), 0));
   function sylHTML() {
     const s = sy;
@@ -534,34 +528,15 @@
       ${s.scale ? `<label class="chk"><input type="checkbox" id="useScale" checked><span>Also use the grade scale in this file: ${s.scale.rows.map((r) => `${esc(r[1])} ${r[0]}+`).join(", ")}</span></label>` : ""}
       <div class="actions"><button class="btn primary" data-act="sylCreate"${s.comps.length ? "" : " disabled"}>Create course</button></div>`;
   }
-  function moHTML() {
-    const m = mo;
-    const opts = S.courses.map((c) => `<option value="${c.id}"${c.id === (cur() && cur().id) ? " selected" : ""}>${esc(c.name)}</option>`).join("");
-    return `<p class="${m.count ? "ok" : "fail"}" style="margin:0">${m.count ? `Read ${m.count} rows, ${Object.keys(m.scores).length} with a grade.` : "No grade rows found. Check what you pasted."}</p>
-      <table class="dt"><thead><tr><th>Component</th><th>Weight %</th><th>Items</th></tr></thead><tbody>${m.comps.map((c) => `<tr><td>${esc(c.n)}</td><td class="num">${c.w}</td><td class="num">${c.items.length}</td></tr>`).join("")}</tbody></table>
-      <label class="chk"><input type="radio" name="moMode" value="new"${S.courses.length ? "" : " checked"}><span>New course named <input id="moName" value="${esc(m.name)}"></span></label>
-      ${S.courses.length ? `<label class="chk"><input type="radio" name="moMode" value="fill" checked><span>Fill grades into course (match by item name): <select class="ctl" id="moCourse">${opts}</select></span></label>` : ""}
-      <div class="actions"><button class="btn primary" data-act="moApply"${m.count ? "" : " disabled"}>Apply</button><span class="foot" id="moRes"></span></div>`;
-  }
   function importHTML() {
-    const t = (id, label) => `<button class="tab${tab === id ? " on" : ""}" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}</button>`;
-    const head = `<div class="tabs seg" role="tablist">${t("syllabus", "Syllabus")}${t("moodle", "Moodle grades")}</div>`;
     const lang = lsGet(LANG_KEY) || "eng";
-    if (tab === "syllabus") return head + `<label class="drop" id="drop"><input type="file" id="file" accept=".pdf,.docx,.txt,.md,.text,.png,.jpg,.jpeg,.webp,.bmp,.gif"><b>Drop a syllabus here, or click</b><span class="muted">PDF, Word, text, or a photo or scan. Read on this device. Nothing is uploaded.</span></label>
+    return `<label class="drop" id="drop"><input type="file" id="file" accept=".pdf,.docx,.txt,.md,.text,.png,.jpg,.jpeg,.webp,.bmp,.gif"><b>Drop a syllabus here, or click</b><span class="muted">PDF, Word, text, or a photo or scan. Read on this device. Nothing is uploaded.</span></label>
       <label class="fld">Language of scans and photos<select class="ctl" id="ocrLang">${[["eng", "English"], ["rus+eng", "Russian + English"], ["kaz+rus+eng", "Kazakh + Russian + English"]].map(([v, l]) => `<option value="${v}"${v === lang ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="kl" for="syltxt">Or paste the grading section</label><textarea id="syltxt" placeholder="Assignments 20%&#10;Midterm 30%&#10;Final exam 50%"></textarea>
       <div class="actions"><button class="btn primary" data-act="sylDo">Find grading table</button><span class="foot" id="sylMsg" aria-live="polite"></span></div><div id="sylOut" style="display:grid;gap:12px">${sy ? sylHTML() : ""}</div>`;
-    return head + `<ol class="steps"><li>In Moodle open <b>Grades</b> for your course, then <b>User report</b>.</li><li>Click the <b>Grab Moodle grades</b> bookmark (drag the button to your bookmarks bar once), or select the grades table and copy it.</li><li>Paste below.</li></ol>
-      <div class="actions"><a class="btn" id="bm" href="#" draggable="true">Grab Moodle grades</a><button class="link" data-act="bmCopy">Copy bookmark code instead</button></div>
-      <p class="foot" style="margin:0">Runs inside your own logged-in Moodle page. Your password goes nowhere. Themes differ: if the bookmark finds nothing, copy and paste the table. Want it automatic? Use Moodle sync.</p>
-      <textarea id="motxt" placeholder="Paste Moodle grades here"></textarea>
-      <div class="actions"><button class="btn primary" data-act="moDo">Read grades</button></div><div id="moOut" style="display:grid;gap:12px">${mo ? moHTML() : ""}</div>`;
   }
   function openImport() {
-    tab = "syllabus";
     openDlg("Import", importHTML());
-    if ($("bm")) $("bm").setAttribute("href", BOOKMARKLET);
-    glide($("dlgBody").querySelector(".tabs"), "tabs");
   }
   const abs = (p) => new URL(p, location.href).href;
   const loadScript = (src) => new Promise((ok, no) => {
@@ -660,142 +635,9 @@
   }
   let sd = null;
   const openScale = () => { sd = JSON.parse(JSON.stringify(S.scale)); openDlg("Grading scale", scaleHTML(sd)); };
-  const backupText = () => JSON.stringify({ ...S, sync: S.sync ? { ...S.sync, token: "" } : null }, null, 1);
+  const backupText = () => JSON.stringify(S, null, 1);
 
-  const siteOf = (s) => {
-    try {
-      const u = new URL(/^https?:\/\//i.test(s.trim()) ? s.trim() : "https://" + s.trim());
-      return u.origin + u.pathname.replace(/\/(?:my|course|grade|user|mod|login|webservice|report|calendar|admin|index\.php)\b.*$/i, "").replace(/\/+$/, "");
-    } catch (e) { return ""; }
-  };
-  async function ws(fn, p = {}) {
-    const y = S.sync;
-    let r;
-    try { r = await fetch(y.site + "/webservice/rest/server.php", { method: "POST", body: new URLSearchParams({ wstoken: y.token, wsfunction: fn, moodlewsrestformat: "json", ...p }) }); }
-    catch (e) { throw new Error(window.chrome?.runtime?.id ? "could not reach Moodle" : "the browser blocked the request. Moodle does not let web pages read it. Use the extension build (see README)"); }
-    let j;
-    try { j = await r.json(); } catch (e) { throw new Error("Moodle did not answer like a web service. Check the address"); }
-    if (j && j.exception) throw new Error(j.message || j.errorcode || "Moodle refused");
-    return j;
-  }
-  async function page(p) {
-    let r;
-    try { r = await fetch(S.sync.site + p, { credentials: "include" }); } catch (e) { throw new Error(window.chrome?.runtime?.id ? "could not reach Moodle" : "the browser blocked the request. Use the extension build (see README)"); }
-    if (/\/login\//.test(r.url) || r.status === 403) throw new Error("you are logged out of Moodle. Open Moodle, log in, then try again");
-    if (!r.ok) throw new Error("Moodle answered " + r.status);
-    const doc = new DOMParser().parseFromString(await r.text(), "text/html");
-    if (doc.querySelector("form#login, form[action*='login/index.php']")) throw new Error("you are logged out of Moodle. Open Moodle, log in, then try again");
-    return doc;
-  }
-  function tableRows(doc) {
-    const t = doc.querySelector("table.user-grade,table.generaltable.user-grade,.user-report-container table");
-    if (!t) return null;
-    const o = [], clean = (e) => e.textContent.replace(/\s+/g, " ").trim();
-    t.querySelectorAll("tbody tr").forEach((tr) => {
-      const h = tr.querySelector("th.column-itemname,td.column-itemname,th.gradeitemheader");
-      if (!h) return;
-      const q = (s) => { const e = tr.querySelector(s); return e ? clean(e) : ""; };
-      const c = tr.className + " " + h.className, m = c.match(/level(\d+)/);
-      o.push({ name: clean(h.querySelector(".rowtitle") || h), depth: m ? +m[1] : 0, kind: /categoryitem/.test(c) ? "categoryitem" : /courseitem/.test(c) ? "total" : /category/.test(c) ? "category" : "item", weight: q(".column-weight"), grade: q(".column-grade"), range: q(".column-range"), pct: q(".column-percentage") });
-    });
-    return o;
-  }
-  const ensureAccess = async (site) => (window.chrome?.permissions?.request ? chrome.permissions.request({ origins: [new URL(site).origin + "/*"] }) : true);
-  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
-  function syncLabel() {
-    const e = $("syncSt"), y = S.sync;
-    if (e) e.textContent = !y || !y.site ? "" : syncing ? "syncing" : y.last ? ago(y.last) : "on";
-  }
-  const sigOf = (comps) => JSON.stringify(comps.map((c) => [c.n, c.items.map((i) => i.n)]));
-  let syncing = false;
-  async function syncNow() {
-    const y = S.sync;
-    if (!y || !y.site || syncing) return;
-    syncing = true;
-    syncLabel();
-    const keep = sel, errs = [];
-    let items = 0, made = 0;
-    for (const mc of (y.courses || []).filter((c) => y.track[c.id])) {
-      try {
-        const rows = y.token ? G.wsRows(await ws("gradereport_user_get_grade_items", { courseid: mc.id, userid: y.userid })) : tableRows(await page("/grade/report/user/index.php?id=" + mc.id + (y.userid ? "&userid=" + y.userid : "")));
-        if (!rows) throw new Error("no grade table on the page");
-        const d = G.parseMoodle(JSON.stringify({ moodle: 1, rows }));
-        if (!d.count) continue;
-        const sig = sigOf(d.comps);
-        let c = S.courses.find((x) => x.mc === mc.id);
-        if (!c) { c = newCourse(mc.name, d.comps, d.cr); c.mc = mc.id; made++; }
-        if (c.sig !== sig) {
-          if (c.sig) for (const k of Object.keys(S.scores)) if (k.startsWith(c.id + "|")) delete S.scores[k];
-          c.comps = d.comps;
-          c.sig = sig;
-        }
-        for (const [k, v] of Object.entries(d.scores)) { S.scores[`${c.id}|${k}`] = v; items++; }
-      } catch (e) { errs.push(`${mc.name}: ${e.message}`); }
-    }
-    sel = keep && S.courses.find((c) => c.id === keep) ? keep : S.courses[0] && S.courses[0].id;
-    y.last = Date.now();
-    y.msg = errs.length ? errs.join("; ") : `${items} grades from ${(y.courses || []).filter((c) => y.track[c.id]).length} courses${made ? `, ${made} new` : ""}`;
-    syncing = false;
-    flushSoon();
-    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !dlg.open;
-    const redraw = () => { renderAll(); syncLabel(); };
-    typing ? setTimeout(redraw, 4000) : redraw();
-    const m = $("syMsg");
-    if (m) { m.textContent = (errs.length ? "Problem: " : "Done: ") + y.msg; m.className = errs.length ? "foot fail" : "foot ok"; }
-    return errs.length === 0;
-  }
   function flushSoon() { S.savedAt = Date.now(); clearTimeout(saveT); flush(); }
-  function syncHTML() {
-    const y = S.sync;
-    if (!y || !y.site) return `<ol class="steps"><li>Open your Moodle in this browser and log in, like you do every day.</li><li>Paste the Moodle address below (the page you see after login is fine).</li><li>Click <b>Connect</b>. The extension reads your grades with your own login. No key, no password.</li></ol>
-      <label class="fld">Moodle address<input id="syncSite" placeholder="https://lms.your-school.edu" value="${esc(y ? y.site : "")}" autocomplete="off"></label>
-      <details><summary class="link">I have a Moodle security key</summary><label class="fld" style="margin-top:8px">Security key, optional<input id="syncTok" type="password" autocomplete="off" spellcheck="false"></label></details>
-      <p class="foot" style="margin:0">Needs the extension build (see README). Grades are only read. Nothing leaves your browser except requests to your own Moodle. Sessions expire: if sync says you are logged out, open Moodle once and log in again.</p>
-      <div class="actions"><button class="btn primary" data-act="syConnect">Connect</button><span class="foot" id="syMsg" aria-live="polite"></span></div>`;
-    return `<p class="meta" style="margin:0">Connected to <b>${esc(y.site)}</b>${y.name ? ` as <b>${esc(y.name)}</b>` : ""}. ${y.last ? "Last sync " + ago(y.last) + "." : "Not synced yet."}</p>
-      <div class="clist">${(y.courses || []).map((c) => `<label class="chk"><input type="checkbox" data-mc="${c.id}"${y.track[c.id] ? " checked" : ""}><span>${esc(c.name)}</span></label>`).join("") || '<p class="muted" style="margin:0">No courses found.</p>'}</div>
-      <label class="fld">Sync every<select class="ctl" id="syMin">${[[0, "Never, only when I press the button"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"]].map(([v, l]) => `<option value="${v}"${y.minutes === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <p class="foot" style="margin:0">Checked courses are built from Moodle on the first sync, then grades update. Syncing runs while this page is open. Grades you type on items Moodle has not graded stay.</p>
-      <div class="actions"><button class="btn primary" data-act="syNow">Sync now</button><button class="link bad" data-act="syOff">Disconnect and forget the key</button><span class="foot" id="syMsg" aria-live="polite">${esc(y.msg || "")}</span></div>`;
-  }
-  const openSync = () => openDlg("Moodle sync", syncHTML());
-  async function syConnect() {
-    const m = $("syMsg"), site = siteOf($("syncSite").value), token = $("syncTok").value.trim();
-    const say = (t, bad) => { m.textContent = t; m.className = "foot" + (bad ? " fail" : ""); };
-    if (!site) { say("Type your Moodle address.", true); return; }
-    say("Connecting…");
-    const prev = S.sync;
-    try {
-      if (!(await ensureAccess(site))) throw new Error("permission to reach that site was declined");
-      S.sync = { site, token, userid: 0, name: "", minutes: 30, track: {}, courses: [], last: 0, msg: "" };
-      if (token) {
-        const info = await ws("core_webservice_get_site_info");
-        const list = await ws("core_enrol_get_users_courses", { userid: info.userid });
-        S.sync.userid = info.userid;
-        S.sync.name = info.fullname || "";
-        S.sync.courses = (Array.isArray(list) ? list : []).map((c) => ({ id: c.id, name: c.fullname || c.shortname || "Course " + c.id }));
-      } else {
-        const doc = await page("/grade/report/overview/index.php");
-        const seen = new Map();
-        doc.querySelectorAll("a[href]").forEach((a) => {
-          const u = new URL(a.getAttribute("href"), S.sync.site + "/"), id = +u.searchParams.get("id");
-          if (id > 1 && /\/(grade\/report\/(user|overview)|course)\//.test(u.pathname) && a.textContent.trim() && !seen.has(id)) seen.set(id, a.textContent.replace(/\s+/g, " ").trim());
-          if (+u.searchParams.get("userid") && !S.sync.userid) S.sync.userid = +u.searchParams.get("userid");
-        });
-        S.sync.courses = [...seen].map(([id, name]) => ({ id, name }));
-        if (!S.sync.courses.length) throw new Error("no courses found on the grades overview page");
-      }
-      for (const c of S.sync.courses) S.sync.track[c.id] = true;
-      flushSoon();
-      $("dlgBody").innerHTML = syncHTML();
-      syncLabel();
-    } catch (e) { S.sync = prev; say("Could not connect: " + e.message, true); }
-  }
-  setInterval(() => {
-    const y = S.sync;
-    if (y && y.site && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow();
-    syncLabel();
-  }, 30000);
   const openBackup = () => openDlg("Backup", `<p class="foot" style="margin:0">Data lives in this browser only. Copy or download it. Paste it back to restore. Old artifact backups work too.</p>
     <pre class="code" id="bkView">${backupText().split("\n").map((l) => `<span>${esc(l)}</span>`).join("")}</pre>
     <div class="actions"><button class="btn" data-act="bkCopy">Copy</button><button class="btn" data-act="bkDownload">Download</button><span class="foot" id="bkMsg"></span></div>
@@ -803,15 +645,8 @@
     <div class="actions"><button class="btn primary" data-act="bkRestore">Restore</button><button class="link bad" data-act="wipe">Delete all data</button></div>`);
 
   $("dlgBody").addEventListener("click", (e) => {
-    const t = e.target.closest("[data-tab],[data-act]");
+    const t = e.target.closest("[data-act]");
     if (!t) return;
-    if (t.dataset.tab) {
-      tab = t.dataset.tab;
-      $("dlgBody").innerHTML = importHTML();
-      if ($("bm")) $("bm").setAttribute("href", BOOKMARKLET);
-      glide($("dlgBody").querySelector(".tabs"), "tabs");
-      return;
-    }
     const a = t.dataset.act, i = +t.dataset.i;
     if (a === "sylDo") { const txt = $("syltxt").value.trim(); if (txt) detect(txt, sy?.name && sy.name !== "New course" ? sy.name : ""); else $("sylMsg").textContent = "Choose a file or paste text first."; }
     else if (a === "dRm") { sy.comps.splice(i, 1); $("sylOut").innerHTML = sylHTML(); }
@@ -824,31 +659,6 @@
       renderAll();
       save();
       status("added " + c.name);
-    }
-    else if (a === "syConnect") syConnect();
-    else if (a === "syNow") { t.disabled = true; $("syMsg").textContent = "Syncing…"; syncNow().finally(() => { t.disabled = false; }); }
-    else if (a === "syOff") { S.sync = null; flushSoon(); $("dlgBody").innerHTML = syncHTML(); syncLabel(); }
-    else if (a === "bmCopy") { navigator.clipboard?.writeText(BOOKMARKLET).then(() => { t.textContent = "copied. new bookmark, paste as address."; }, () => { t.textContent = "copy failed here"; }); }
-    else if (a === "moDo") { const txt = $("motxt").value.trim(); if (txt) { mo = G.parseMoodle(txt); $("moOut").innerHTML = moHTML(); } }
-    else if (a === "moApply") {
-      const mode = dlg.querySelector("input[name=moMode]:checked")?.value || "new";
-      if (mode === "fill") {
-        const c = S.courses.find((x) => x.id === $("moCourse").value);
-        const r = G.fillScores(c, S.scores, mo);
-        sel = c.id;
-        $("moRes").textContent = `Filled ${r.filled} grades.` + (r.unmatched.length ? ` No match: ${r.unmatched.join(", ")}.` : "");
-        $("moRes").className = r.unmatched.length ? "foot fail" : "foot ok";
-        renderAll();
-        save();
-      } else {
-        const c = newCourse($("moName").value.trim() || mo.name, mo.comps, mo.cr);
-        for (const [k, v] of Object.entries(mo.scores)) S.scores[`${c.id}|${k}`] = v;
-        mo = null;
-        dlg.close();
-        renderAll();
-        save();
-        status("added " + c.name + " with grades");
-      }
     }
     else if (a === "sRm") { sd.rows.splice(i, 1); $("dlgBody").innerHTML = scaleHTML(sd); }
     else if (a === "sAdd") { sd.rows.splice(Math.max(0, sd.rows.length - 1), 0, [0, "?", 0]); $("dlgBody").innerHTML = scaleHTML(sd); }
@@ -910,8 +720,6 @@
     if (t.id === "sclRound" && sd) sd.round = t.checked;
     if (t.id === "file" && t.files[0]) takeFile(t.files[0]);
     if (t.id === "ocrLang") lsSet(LANG_KEY, t.value);
-    if (t.dataset.mc && S.sync) { S.sync.track[t.dataset.mc] = t.checked; save(); }
-    if (t.id === "syMin" && S.sync) { S.sync.minutes = +t.value; save(); }
   });
   $("dlgBody").addEventListener("dragover", (e) => { if (e.target.closest("#drop")) { e.preventDefault(); $("drop").classList.add("over"); } });
   $("dlgBody").addEventListener("dragleave", () => $("drop")?.classList.remove("over"));
@@ -923,8 +731,6 @@
     return [
       ...S.courses.map((c) => ({ l: c.name, h: "course", run: () => select(c.id) })),
       { l: "Add course", h: "action", run: addByHand },
-      { l: "Import syllabus or Moodle grades", h: "action", run: openImport },
-      { l: "Moodle sync", h: "action", run: openSync },
       { l: "Grading scale", h: "action", run: openScale },
       { l: "Backup and restore", h: "action", run: openBackup },
       { l: "Load example courses", h: "action", run: loadExample },
@@ -997,5 +803,4 @@
   renderAll();
   status(S.savedAt ? "Loaded · stays on this device" : "Nothing saved yet · stays on this device");
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(() => {});
-  setTimeout(() => { const y = S.sync; if (y && y.site && y.minutes && Date.now() - y.last >= y.minutes * 60000) syncNow(); }, 1500);
 })();
